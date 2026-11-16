@@ -7,7 +7,7 @@
 
 ## 1. Sobre o projeto
 
-O **MesaViva** é um sistema de console desenvolvido em **C#**, com banco de dados **MySQL**, que conecta estabelecimentos com alimentos excedentes a instituições interessadas em recebê-los.
+O **MesaViva** é um sistema de console desenvolvido em **C#**, com banco de dados **MySQL** acessado pelo **Entity Framework Core (EF Core)**, que conecta estabelecimentos com alimentos excedentes a instituições interessadas em recebê-los.
 
 Os estabelecimentos cadastram ofertas com a quantidade disponível, a validade e os horários de retirada. As instituições consultam essas ofertas, reservam alimentos e confirmam as coletas. O sistema controla as quantidades para evitar reservas acima do disponível.
 
@@ -92,12 +92,14 @@ Uma padaria cadastra **12 kg de pães**, com retirada das **16h às 18h**. Uma i
 | Código | Descrição |
 |---|---|
 | RNF01 | O sistema será desenvolvido em C# com .NET. |
-| RNF02 | Os dados serão persistidos em um banco MySQL. |
+| RNF02 | Os dados serão persistidos em um banco MySQL usando Entity Framework Core (EF Core). |
 | RNF03 | A interface será de console, com menus interativos. |
 | RNF04 | O código aplicará conceitos de POO, como classes, métodos e encapsulamento. |
-| RNF05 | O projeto terá separação entre modelos, regras de negócio, acesso ao banco e menus. |
+| RNF05 | O projeto terá separação entre modelos, regras de negócio, DbContext/acesso a dados e menus. |
 | RNF06 | As entradas serão validadas e erros serão apresentados com mensagens compreensíveis. |
 | RNF07 | Senhas serão armazenadas usando hash seguro, nunca em texto puro. |
+| RNF08 | A estrutura do banco será criada e atualizada a partir das classes C# com Code First e Migrations. |
+| RNF09 | As consultas ao banco utilizarão LINQ e, quando apropriado, métodos assíncronos com async/await. |
 
 ## 5. Regras de negócio (RN)
 
@@ -168,6 +170,8 @@ flowchart LR
 
 ### 6.2. Diagrama entidade-relacionamento (DER)
 
+Este é o **modelo previsto** do MySQL; as tabelas serão criadas a partir das entidades C# com **EF Core Code First e Migrations**, e não por um script SQL manual.
+
 ```mermaid
 erDiagram
     USUARIOS ||--o{ OFERTAS : publica
@@ -205,7 +209,7 @@ erDiagram
     }
 ```
 
-**Relacionamentos:** um estabelecimento pode publicar várias ofertas; uma instituição pode realizar várias reservas; e uma oferta pode possuir várias reservas. Os campos `estabelecimento_id` e `instituicao_id` apontam para `USUARIOS`, e o tipo de cada conta será validado pelo sistema.
+**Relacionamentos:** um estabelecimento pode publicar várias ofertas; uma instituição pode realizar várias reservas; e uma oferta pode possuir várias reservas. Os campos `estabelecimento_id` e `instituicao_id` apontam para `USUARIOS`, e o tipo de cada conta será validado pelo sistema. No EF Core, isso será representado com **chaves estrangeiras e propriedades de navegação**.
 
 ### 6.3. Diagrama de classes (proposta inicial)
 
@@ -250,6 +254,12 @@ classDiagram
         +ConfirmarColeta()
     }
 
+    class AppDbContext {
+        +DbSet~Usuario~ Usuarios
+        +DbSet~Oferta~ Ofertas
+        +DbSet~Reserva~ Reservas
+    }
+
     class AuthService {
         +CadastrarUsuario()
         +FazerLogin()
@@ -275,13 +285,16 @@ classDiagram
     Estabelecimento "1" --> "0..*" Oferta : publica
     Instituicao "1" --> "0..*" Reserva : realiza
     Oferta "1" --> "0..*" Reserva : recebe
+    AppDbContext ..> Usuario
+    AppDbContext ..> Oferta
+    AppDbContext ..> Reserva
     AuthService ..> Usuario
     OfertaService ..> Oferta
     ReservaService ..> Reserva
     ReservaService ..> Oferta
 ```
 
-*Os métodos e as classes de serviço poderão ser ajustados quando começarmos a implementação. A herança é usada no C#, enquanto os dois perfis compartilham a tabela `USUARIOS` no banco.*
+*Os métodos e as classes de serviço poderão ser ajustados quando começarmos a implementação. Se mantivermos a herança de `Usuario`, o EF Core poderá mapear os dois perfis na mesma tabela `USUARIOS` (estratégia TPH, com discriminador de tipo). Como alternativa mais simples, pode-se usar uma única classe `Usuario` com um campo `Tipo`; a decisão será fechada antes de gerar a primeira Migration.*
 
 ### 6.4. Fluxo de login e menus
 
@@ -318,29 +331,103 @@ MesaViva/
 │   ├── OfertaService.cs
 │   └── ReservaService.cs
 ├── Data/
-│   ├── ConnectionFactory.cs
-│   ├── UsuarioRepository.cs
-│   ├── OfertaRepository.cs
-│   └── ReservaRepository.cs
+│   └── AppDbContext.cs
+├── Migrations/            # Gerada automaticamente pelo EF Core
 ├── UI/
 │   ├── MenuInicial.cs
 │   ├── MenuEstabelecimento.cs
 │   └── MenuInstituicao.cs
-├── Database/
-│   └── mesaviva.sql
 ├── Program.cs
+├── MesaViva.csproj
 └── README.md
 ```
 
-## 8. Tecnologias previstas
+**Mudança em relação ao planejamento anterior:** não precisaremos da `ConnectionFactory.cs`, de comandos `MySqlCommand` nem de um arquivo `mesaviva.sql` para criar as tabelas. O **AppDbContext** e o **EF Core** farão o mapeamento das entidades e a persistência no MySQL. Os `Services` manterão as validações e regras do negócio, e os menus cuidarão da interação com o usuário.
 
-- **C# / .NET:** implementação do sistema e das regras de negócio.
-- **MySQL:** armazenamento dos usuários, ofertas e reservas.
-- **MySql.Data:** conexão entre C# e MySQL.
+## 8. Banco de dados com Entity Framework Core
+
+### 8.1. Como vamos trabalhar
+
+A implementação seguirá a **Aula 11.5 — Entity Framework Core**, do professor Bruno Martins:
+
+1. **Entidades C#:** classes como `Usuario`, `Oferta` e `Reserva` representarão os dados.
+2. **AppDbContext:** classe que herda de `DbContext` e reúne os conjuntos `DbSet<Usuario>`, `DbSet<Oferta>` e `DbSet<Reserva>`.
+3. **Code First:** definiremos primeiro o modelo em C# e depois geraremos as tabelas no MySQL.
+4. **Migrations:** criarão ou atualizarão a estrutura do banco conforme as alterações no modelo.
+5. **CRUD com EF Core:** cadastro, consulta, atualização e exclusão de registros sem escrever `INSERT`, `SELECT`, `UPDATE` e `DELETE` manualmente.
+6. **LINQ:** consultas com `Where`, `OrderBy`, `FirstOrDefaultAsync`, `ToListAsync` e `Include`.
+7. **async/await:** operações como `SaveChangesAsync` e `ToListAsync` para acesso assíncrono aos dados.
+8. **Relacionamentos:** chaves estrangeiras e propriedades de navegação entre usuários, ofertas e reservas.
+
+> **EF Core não substitui o MySQL.** Ele é um ORM (mapeamento objeto-relacional) que conecta as classes C# às tabelas do banco.
+
+### 8.2. Pacotes planejados
+
+O material da aula utiliza o provedor **`MySql.EntityFrameworkCore`** para MySQL e o pacote de design do EF Core:
+
+```bash
+dotnet add package Microsoft.EntityFrameworkCore.Design
+dotnet add package MySql.EntityFrameworkCore
+```
+
+As versões dos pacotes deverão ser compatíveis com o .NET do projeto. Para conferir os pacotes instalados:
+
+```bash
+dotnet list package
+```
+
+### 8.3. Comandos de criação e migrations
+
+Depois de configurar o `AppDbContext` e a conexão local com o MySQL, o fluxo previsto é:
+
+```bash
+# Criar o projeto (se ainda não existir)
+dotnet new console -n MesaViva
+cd MesaViva
+
+# Instalar os pacotes do EF Core
+dotnet add package Microsoft.EntityFrameworkCore.Design
+dotnet add package MySql.EntityFrameworkCore
+
+# Instalar a ferramenta de migrations, caso não esteja disponível
+dotnet tool install --global dotnet-ef
+
+# Criar a primeira migration
+dotnet ef migrations add InitialCreate
+
+# Aplicar a migration ao MySQL
+dotnet ef database update
+
+# Executar o sistema
+dotnet run
+```
+
+**Atenção:** esses comandos fazem parte do **planejamento**, ainda não foram executados. Antes de aplicar a migration, precisaremos configurar a string de conexão no `AppDbContext` (por exemplo, usando `UseMySQL`, como no slide), garantir que o servidor MySQL esteja em funcionamento e não publicar senhas no GitHub.
+
+### 8.4. Exemplo de consulta com LINQ
+
+Quando um estabelecimento visualizar as próprias ofertas, poderemos usar uma consulta parecida com esta:
+
+```csharp
+var minhasOfertas = await db.Ofertas
+    .Where(o => o.EstabelecimentoId == usuarioLogadoId)
+    .ToListAsync();
+```
+
+Para salvar alterações, usaremos `await db.SaveChangesAsync()`. A ideia é aplicar os mesmos conceitos de CRUD, LINQ e `async/await` apresentados na aula.
+
+## 9. Tecnologias previstas
+
+- **C# / .NET:** classes, menus e regras de negócio.
+- **MySQL:** banco de dados relacional.
+- **Entity Framework Core:** ORM e persistência dos dados.
+- **MySql.EntityFrameworkCore:** provedor do EF Core para MySQL usado na aula.
+- **Code First e Migrations:** criação/evolução das tabelas a partir das entidades.
+- **LINQ e async/await:** consultas e operações assíncronas com o banco.
 - **Git e GitHub:** versionamento e organização do trabalho.
-- **Mermaid/UML:** representação dos diagramas.
+- **Mermaid/UML:** documentação dos diagramas.
 
-## 9. O que será demonstrado na apresentação
+## 10. O que será demonstrado na apresentação
 
 1. Criação de uma conta de estabelecimento e outra de instituição.
 2. Login e acesso aos menus específicos.
@@ -351,13 +438,14 @@ MesaViva/
 7. Consulta às ofertas urgentes.
 8. Encerramento e reabertura do programa, comprovando que os dados continuam no MySQL.
 9. Explicação dos diagramas, relacionamentos e conceitos de POO aplicados.
+10. Demonstração do EF Core com `AppDbContext`, LINQ e Migrations no MySQL.
 
-## 10. Planejamento de 14 dias
+## 11. Planejamento de 14 dias
 
 | Período | Atividade |
 |---|---|
 | Dias 1–2 | Fechar requisitos e diagramas. |
-| Dias 3–4 | Criar tabelas MySQL, conexão e classes principais. |
+| Dias 3–4 | Criar classes, configurar AppDbContext e gerar o banco por Code First/Migrations. |
 | Dias 5–7 | Implementar cadastro, login, menus e CRUD de ofertas. |
 | Dias 8–10 | Implementar reservas, coletas e validações. |
 | Dia 11 | Implementar consulta de ofertas urgentes. |
@@ -365,13 +453,13 @@ MesaViva/
 | Dia 13 | Revisar README, documentação e slides. |
 | Dia 14 | Ensaiar a demonstração. |
 
-## 11. Status do projeto
+## 12. Status do projeto
 
 - [x] Definição do tema e escopo
 - [x] Planejamento dos requisitos
 - [x] Propostas iniciais dos diagramas
 - [ ] Revisão e aprovação dos diagramas
-- [ ] Criação do banco de dados
+- [ ] Configuração do EF Core e criação do banco por Migrations
 - [ ] Implementação em C#
 - [ ] Testes
 - [ ] Apresentação final
@@ -379,3 +467,5 @@ MesaViva/
 ---
 
 **MesaViva — projeto acadêmico desenvolvido por Welinton e Leonardo.**
+
+*Referência de estudo: Aula 11.5 — Entity Framework Core, Programação Orientada a Objetos, professor Bruno Martins.*
