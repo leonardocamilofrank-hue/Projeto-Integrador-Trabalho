@@ -1,0 +1,43 @@
+# Compilacao C# / .NET
+**/bin/
+**/obj/
+**/artifacts/
+**/publish/
+
+# Visual Studio, VS Code e JetBrains
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.rsuser
+*.sln.docstates
+*.DotSettings.user
+
+# Testes e logs
+**/TestResults/
+coverage/
+.coverage
+.coverage.*
+*.log
+
+# Pacotes NuGet gerados
+*.nupkg
+*.snupkg
+packages/
+
+# Segredos e configuracoes locais
+.env
+.env.*
+!.env.example
+appsettings.Local.json
+appsettings.*.local.json
+appsettings.Development.json
+
+# Arquivos temporarios
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
+
+# Migrations/ deve continuar versionado no Git
