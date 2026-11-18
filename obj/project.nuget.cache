@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "70eSQ/Xcr/Q=",
+  "dgSpecHash": "CeOyl1VE87A=",
   "success": true,
-  "projectFilePath": "C:\\Users\\welinton61309886\\Documents\\ConteudoHeranca\\Projeto-Integrador-Trabalho\\Projeto-Integrador-Trabalho.csproj",
+  "projectFilePath": "C:\\Users\\welinton61309886\\Documents\\GitHub\\Projeto-Integrador-Trabalho\\Projeto-Integrador-Trabalho.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\welinton61309886\\.nuget\\packages\\bouncycastle.cryptography\\2.6.2\\bouncycastle.cryptography.2.6.2.nupkg.sha512",
     "C:\\Users\\welinton61309886\\.nuget\\packages\\google.protobuf\\3.35.0\\google.protobuf.3.35.0.nupkg.sha512",

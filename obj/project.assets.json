@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "targets": {
     "net10.0": {
       "BouncyCastle.Cryptography/2.6.2": {
@@ -3167,11 +3167,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\welinton61309886\\Documents\\ConteudoHeranca\\Projeto-Integrador-Trabalho\\Projeto-Integrador-Trabalho.csproj",
+      "projectUniqueName": "C:\\Users\\welinton61309886\\Documents\\GitHub\\Projeto-Integrador-Trabalho\\Projeto-Integrador-Trabalho.csproj",
       "projectName": "Projeto-Integrador-Trabalho",
-      "projectPath": "C:\\Users\\welinton61309886\\Documents\\ConteudoHeranca\\Projeto-Integrador-Trabalho\\Projeto-Integrador-Trabalho.csproj",
+      "projectPath": "C:\\Users\\welinton61309886\\Documents\\GitHub\\Projeto-Integrador-Trabalho\\Projeto-Integrador-Trabalho.csproj",
       "packagesPath": "C:\\Users\\welinton61309886\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\welinton61309886\\Documents\\ConteudoHeranca\\Projeto-Integrador-Trabalho\\obj\\",
+      "outputPath": "C:\\Users\\welinton61309886\\Documents\\GitHub\\Projeto-Integrador-Trabalho\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\welinton61309886\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -3184,6 +3184,7 @@
       },
       "frameworks": {
         "net10.0": {
+          "framework": "net10.0",
           "targetAlias": "net10.0",
           "projectReferences": {}
         }
@@ -3198,10 +3199,11 @@
         "auditLevel": "low",
         "auditMode": "all"
       },
-      "SdkAnalysisLevel": "10.0.100"
+      "SdkAnalysisLevel": "10.0.400"
     },
     "frameworks": {
       "net10.0": {
+        "framework": "net10.0",
         "targetAlias": "net10.0",
         "dependencies": {
           "Microsoft.EntityFrameworkCore.Design": {
@@ -3231,7 +3233,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.101/PortableRuntimeIdentifierGraph.json",
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.401/PortableRuntimeIdentifierGraph.json",
         "packagesToPrune": {
           "Microsoft.CSharp": "(,4.7.32767]",
           "Microsoft.VisualBasic": "(,10.4.32767]",
