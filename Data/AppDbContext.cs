@@ -9,6 +9,16 @@ public class AppDbContext : DbContext
     public DbSet<Oferta> Ofertas { get; set; } = null!;
     public DbSet<Reserva> Reservas { get; set; } = null!;
 
+    internal async Task<Oferta?> BuscarOfertaParaAtualizarAsync(int ofertaId)
+    {
+        // A linha da oferta coordena as alterações que afetam suas reservas.
+        var ofertas = await Ofertas
+            .FromSql($"SELECT * FROM `Ofertas` WHERE `Id` = {ofertaId} FOR UPDATE")
+            .ToListAsync();
+
+        return ofertas.SingleOrDefault();
+    }
+
     protected override void OnConfiguring(
         DbContextOptionsBuilder optionsBuilder)
     {
@@ -36,7 +46,7 @@ public class AppDbContext : DbContext
         // Uma reserva pertence a uma oferta
         modelBuilder.Entity<Reserva>()
             .HasOne<Oferta>()
-            .WithMany()
+            .WithMany(oferta => oferta.Reservas)
             .HasForeignKey(r => r.OfertaId)
             .OnDelete(DeleteBehavior.Restrict);
 
