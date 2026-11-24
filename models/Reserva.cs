@@ -2,9 +2,9 @@ namespace MesaViva.Models;
 
 public class Reserva
 {
-    private const string StatusReservada = "RESERVADA";
-    private const string StatusCancelada = "CANCELADA";
-    private const string StatusColetada = "COLETADA";
+    public const string StatusReservada = "RESERVADA";
+    public const string StatusCancelada = "CANCELADA";
+    public const string StatusColetada = "COLETADA";
 
     public int Id { get; set; }
     public int OfertaId { get; set; }
@@ -16,12 +16,7 @@ public class Reserva
 
     public void Validar()
     {
-        if (QuantidadeReservada <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(QuantidadeReservada),
-                "A quantidade reservada deve ser maior que zero.");
-        }
+        QuantidadeEmKg.Validar(QuantidadeReservada, nameof(QuantidadeReservada), "A quantidade reservada");
     }
 
     public void Cancelar()

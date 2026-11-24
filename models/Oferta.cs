@@ -9,6 +9,7 @@ public class Oferta
     public DateTime Validade { get; set; }
     public DateTime InicioRetirada { get; set; }
     public DateTime FimRetirada { get; set; }
+    public ICollection<Reserva> Reservas { get; } = new List<Reserva>();
 
     public void Validar()
     {
@@ -17,12 +18,7 @@ public class Oferta
             throw new ArgumentException("O nome do alimento é obrigatório.", nameof(Alimento));
         }
 
-        if (QuantidadeTotal <= 0)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(QuantidadeTotal),
-                "A quantidade total deve ser maior que zero.");
-        }
+        QuantidadeEmKg.Validar(QuantidadeTotal, nameof(QuantidadeTotal), "A quantidade total");
 
         if (Validade == default)
         {
@@ -51,26 +47,28 @@ public class Oferta
 
     public decimal CalcularQuantidadeDisponivel(IEnumerable<Reserva> reservas)
     {
-        if (reservas is null)
-        {
-            throw new ArgumentNullException(nameof(reservas));
-        }
+        return QuantidadeTotal - CalcularQuantidadeComprometida(reservas);
+    }
 
-        decimal quantidadeReservada = reservas
+    internal decimal CalcularQuantidadeComprometida(IEnumerable<Reserva> reservas)
+    {
+        ArgumentNullException.ThrowIfNull(reservas);
+
+        return reservas
             .Where(reserva => reserva.OfertaId == Id
-                && (reserva.Status == "RESERVADA" || reserva.Status == "COLETADA"))
+                && reserva.Status is Reserva.StatusReservada or Reserva.StatusColetada)
             .Sum(reserva => reserva.QuantidadeReservada);
+    }
 
-        return Math.Max(0, QuantidadeTotal - quantidadeReservada);
+    internal bool PodeReservarEm(DateTime agora)
+    {
+        return Validade >= agora && FimRetirada > agora;
     }
 
     public bool EstaUrgente(IEnumerable<Reserva> reservas, DateTime agora)
     {
-        bool retiradaProxima = FimRetirada > agora
-            && FimRetirada <= agora.AddHours(2);
-
-        return retiradaProxima
-            && Validade >= agora
+        return PodeReservarEm(agora)
+            && FimRetirada <= agora.AddHours(2)
             && CalcularQuantidadeDisponivel(reservas) > 0;
     }
 }
