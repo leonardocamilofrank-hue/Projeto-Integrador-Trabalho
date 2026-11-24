@@ -31,18 +31,12 @@ public static class Utils
         while (true)
         {
             string entrada = LerCampo(mensagem);
-            if (string.IsNullOrWhiteSpace(entrada))
-            {
-                Console.WriteLine("Erro: Este campo não pode ficar vazio!");
-                continue;
-            }
-
-            if (entrada.All(c => char.IsLetter(c) || c == ' '))
+            if (!string.IsNullOrWhiteSpace(entrada))
             {
                 return entrada;
             }
 
-            Console.WriteLine("Utilize apenas letras ou espaçamento quando necessário.");
+            Console.WriteLine("Erro: Este campo não pode ficar vazio!");
         }
     }
 
