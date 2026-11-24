@@ -1,4 +1,3 @@
-using System.Net.Mail;
 using System.Security.Cryptography;
 using MesaViva.Data;
 using MesaViva.Models;
@@ -30,53 +29,91 @@ public class AuthService
         string endereco,
         string tipo)
     {
-        ValidarCadastro(nome, email, senha, telefone, endereco, tipo);
-        _ = TentarNormalizarEmail(email, out string emailNormalizado);
+        var usuario = new Usuario();
+        usuario.AtualizarDados(nome, email, telefone, endereco);
+        usuario.Tipo = Usuario.NormalizarTipo(tipo)
+            ?? throw new ArgumentException("O tipo deve ser Estabelecimento ou Instituição.", nameof(tipo));
 
-        bool emailJaCadastrado = await _context.Usuarios
-            .AnyAsync(usuario => usuario.Email == emailNormalizado);
+        if (string.IsNullOrWhiteSpace(senha))
+        {
+            throw new ArgumentException("A senha é obrigatória.", nameof(senha));
+        }
+
+        await VerificarEmailDisponivelAsync(usuario.Email);
+        usuario.SenhaHash = GerarHashSenha(senha);
+        _context.Usuarios.Add(usuario);
+
+        try
+        {
+            await SalvarUsuarioAsync();
+        }
+        finally
+        {
+            _context.Entry(usuario).State = EntityState.Detached;
+        }
+
+        return usuario;
+    }
+
+    public async Task<Usuario> AtualizarDadosAsync(
+        Usuario usuario, string nome, string email, string telefone, string endereco)
+    {
+        if (usuario.Id <= 0 || Usuario.NormalizarTipo(usuario.Tipo) is null)
+        {
+            throw new InvalidOperationException("Entre em uma conta para editar seus dados.");
+        }
+
+        Usuario cadastro = await _context.Usuarios.SingleOrDefaultAsync(item => item.Id == usuario.Id)
+            ?? throw new InvalidOperationException("Conta não encontrada.");
+
+        try
+        {
+            cadastro.AtualizarDados(nome, email, telefone, endereco);
+            await VerificarEmailDisponivelAsync(cadastro.Email, cadastro.Id);
+            await SalvarUsuarioAsync();
+        }
+        finally
+        {
+            _context.Entry(cadastro).State = EntityState.Detached;
+        }
+
+        cadastro.Tipo = Usuario.NormalizarTipo(cadastro.Tipo) ?? cadastro.Tipo;
+        return cadastro;
+    }
+
+    private async Task VerificarEmailDisponivelAsync(string email, int? usuarioId = null)
+    {
+        bool emailJaCadastrado = await _context.Usuarios.AnyAsync(item =>
+            item.Email == email && (usuarioId == null || item.Id != usuarioId));
 
         if (emailJaCadastrado)
         {
             throw new InvalidOperationException("Este e-mail já está cadastrado.");
         }
+    }
 
-        var usuario = new Usuario
-        {
-            Nome = nome.Trim(),
-            Email = emailNormalizado,
-            SenhaHash = GerarHashSenha(senha),
-            Telefone = telefone.Trim(),
-            Endereco = endereco.Trim(),
-            Tipo = NormalizarTipo(tipo)
-        };
-
-        _context.Usuarios.Add(usuario);
-
+    private async Task SalvarUsuarioAsync()
+    {
         try
         {
             await _context.SaveChangesAsync();
         }
         catch (DbUpdateException exception) when (EhViolacaoDeEmailDuplicado(exception))
         {
-            _context.Entry(usuario).State = EntityState.Detached;
-            throw new InvalidOperationException(
-                "Este e-mail já está cadastrado.",
-                exception);
+            throw new InvalidOperationException("Este e-mail já está cadastrado.", exception);
         }
-
-        return usuario;
     }
 
     public async Task<Usuario?> FazerLoginAsync(string email, string senha)
     {
-        if (!TentarNormalizarEmail(email, out string emailNormalizado)
+        if (!Usuario.TentarNormalizarEmail(email, out string emailNormalizado)
             || string.IsNullOrEmpty(senha))
         {
             return null;
         }
 
         Usuario? usuario = await _context.Usuarios
+            .AsNoTracking()
             .FirstOrDefaultAsync(item => item.Email == emailNormalizado);
 
         if (usuario is null || !VerificarSenha(senha, usuario.SenhaHash))
@@ -84,81 +121,8 @@ public class AuthService
             return null;
         }
 
+        usuario.Tipo = Usuario.NormalizarTipo(usuario.Tipo) ?? usuario.Tipo;
         return usuario;
-    }
-
-    private static void ValidarCadastro(
-        string nome,
-        string email,
-        string senha,
-        string telefone,
-        string endereco,
-        string tipo)
-    {
-        if (string.IsNullOrWhiteSpace(nome))
-        {
-            throw new ArgumentException("O nome é obrigatório.", nameof(nome));
-        }
-
-        if (!TentarNormalizarEmail(email, out _))
-        {
-            throw new ArgumentException("Informe um e-mail válido.", nameof(email));
-        }
-
-        if (string.IsNullOrWhiteSpace(senha))
-        {
-            throw new ArgumentException("A senha é obrigatória.", nameof(senha));
-        }
-
-        if (string.IsNullOrWhiteSpace(telefone))
-        {
-            throw new ArgumentException("O telefone é obrigatório.", nameof(telefone));
-        }
-
-        if (string.IsNullOrWhiteSpace(endereco))
-        {
-            throw new ArgumentException("O endereço é obrigatório.", nameof(endereco));
-        }
-
-        _ = NormalizarTipo(tipo);
-    }
-
-    private static bool TentarNormalizarEmail(string? email, out string emailNormalizado)
-    {
-        emailNormalizado = string.Empty;
-        if (string.IsNullOrWhiteSpace(email))
-        {
-            return false;
-        }
-
-        string emailAparado = email.Trim();
-        if (!MailAddress.TryCreate(emailAparado, out MailAddress? endereco)
-            || !string.IsNullOrEmpty(endereco.DisplayName)
-            || !string.Equals(endereco.Address, emailAparado, StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        emailNormalizado = endereco.Address.ToLowerInvariant();
-        return true;
-    }
-
-    private static string NormalizarTipo(string tipo)
-    {
-        if (string.Equals(tipo?.Trim(), "Estabelecimento", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Estabelecimento";
-        }
-
-        if (string.Equals(tipo?.Trim(), "Instituição", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(tipo?.Trim(), "Instituicao", StringComparison.OrdinalIgnoreCase))
-        {
-            return "Instituição";
-        }
-
-        throw new ArgumentException(
-            "O tipo deve ser Estabelecimento ou Instituição.",
-            nameof(tipo));
     }
 
     private static bool EhViolacaoDeEmailDuplicado(DbUpdateException exception)

@@ -10,5 +10,14 @@ if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MESAVIVA_DB"))
 
 await using var context = new AppDbContext();
 var authService = new AuthService(context);
+var ofertaService = new OfertaService();
+var reservaService = new ReservaService();
 
-await MenuInicial.ExibirAsync(authService);
+try
+{
+    await MenuInicial.ExibirAsync(authService, ofertaService, reservaService);
+}
+catch (EndOfStreamException)
+{
+    Console.WriteLine("Entrada encerrada.");
+}

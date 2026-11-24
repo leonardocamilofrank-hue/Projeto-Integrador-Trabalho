@@ -1,77 +1,89 @@
+using System.Globalization;
+
 namespace MesaViva;
+
 public static class Utils
 {
+    private static readonly CultureInfo Cultura = CultureInfo.GetCultureInfo("pt-BR");
+
+    public static void LimparTela()
+    {
+        if (!Console.IsOutputRedirected)
+        {
+            Console.Clear();
+        }
+    }
+
+    public static string LerCampo(string mensagem)
+    {
+        Console.Write(mensagem);
+        return Console.ReadLine() ?? throw new EndOfStreamException();
+    }
+
+    public static void AguardarContinuacao()
+    {
+        Console.WriteLine();
+        LerCampo("Pressione Enter para continuar.");
+    }
+
     public static string LerTexto(string mensagem)
-{
-    string? entrada;
-    do
     {
-        Console.Write(mensagem);
-        entrada = Console.ReadLine();
+        while (true)
+        {
+            string entrada = LerCampo(mensagem);
+            if (string.IsNullOrWhiteSpace(entrada))
+            {
+                Console.WriteLine("Erro: Este campo não pode ficar vazio!");
+                continue;
+            }
 
-        if (string.IsNullOrWhiteSpace(entrada))
-        {
-            Console.WriteLine("Erro: Este campo não pode ficar vazio!");
-        }
-        else if (!entrada.All(c => char.IsLetter(c) || c == ' '))
-        {
+            if (entrada.All(c => char.IsLetter(c) || c == ' '))
+            {
+                return entrada;
+            }
+
             Console.WriteLine("Utilize apenas letras ou espaçamento quando necessário.");
+        }
+    }
 
-            entrada = null;
+    public static int LerInteiro(string mensagem)
+    {
+        int numero;
+        while (!int.TryParse(LerCampo(mensagem), out numero) || numero < 0)
+        {
+            Console.WriteLine(numero < 0
+                ? "O número não pode ser negativo."
+                : "Erro: Digite um número inteiro válido!");
         }
 
-    } while (string.IsNullOrWhiteSpace(entrada));
-
-    return entrada;
-}
-
-public static int LerInteiro(string mensagem)
-{
-    int numero;
-    Console.Write(mensagem);
-
-    while (!int.TryParse(Console.ReadLine(), out numero) || numero < 0)
-    {
-        if (numero < 0)
-            {
-                Console.WriteLine("O número não pode ser negativo. ");
-            }
-            else
-            {
-                Console.WriteLine("Erro: Digite um número inteiro válido!");  
-            }
-        Console.Write(mensagem);
+        return numero;
     }
 
-    return numero;
-}
-
-public static decimal LerDecimal(string mensagem)
-{
-    decimal numero;
-    Console.Write(mensagem);
-
-    while (!decimal.TryParse(Console.ReadLine(), out numero) || numero <= 0)
+    public static decimal LerDecimal(string mensagem)
     {
-        Console.WriteLine("Erro: Digite um preço válido e maior que zero!");
-        Console.Write(mensagem);
+        const NumberStyles formato = NumberStyles.Number & ~NumberStyles.AllowThousands;
+        decimal numero;
+        while (!decimal.TryParse(LerCampo(mensagem), formato, Cultura, out numero) || numero <= 0)
+        {
+            Console.WriteLine("Digite uma quantidade em kg maior que zero (ex.: 2,50).");
+        }
+
+        return numero;
     }
 
-    return numero;
-}
-public static DateTime LerDateTime(string mensagem)
-{
-    DateTime data;
-    Console.Write(mensagem);
-
-    // Garante que o texto digitado seja convertido corretamente para DateTime
-    while (!DateTime.TryParse(Console.ReadLine(), out data))
+    public static DateTime LerDateTime(string mensagem)
     {
-        Console.WriteLine("Erro: Digite uma data válida (ex: 25/12/2026)!");
-        Console.Write(mensagem);
+        DateTime data;
+        while (!DateTime.TryParseExact(LerCampo(mensagem), "dd/MM/yyyy HH:mm", Cultura, DateTimeStyles.AllowWhiteSpaces, out data))
+        {
+            Console.WriteLine("Digite a data e o horário no formato dd/MM/aaaa HH:mm.");
+        }
+
+        return data;
     }
 
-    return data;
-}
-
+    public static string FormatarQuantidade(decimal quantidade)
+    {
+        return quantidade.ToString("0.##", Cultura) + " kg";
+    }
 }

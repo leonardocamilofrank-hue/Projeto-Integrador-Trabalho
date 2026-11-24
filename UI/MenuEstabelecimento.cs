@@ -1,16 +1,16 @@
 using MesaViva.Models;
+using MesaViva.Services;
 
 namespace MesaViva.UI;
 
 public static class MenuEstabelecimento
 {
-    public static void Exibir(Usuario estabelecimento)
+    public static async Task ExibirAsync(
+        Usuario estabelecimento, AuthService authService, OfertaService ofertaService, ReservaService reservaService)
     {
-        bool continuar = true;
-
-        while (continuar)
+        while (true)
         {
-            Console.Clear();
+            Utils.LimparTela();
             Console.WriteLine("========== MENU DO ESTABELECIMENTO ==========");
             Console.WriteLine($"Estabelecimento: {estabelecimento.Nome}");
             Console.WriteLine("1 - Cadastrar oferta");
@@ -18,49 +18,73 @@ public static class MenuEstabelecimento
             Console.WriteLine("3 - Editar oferta");
             Console.WriteLine("4 - Excluir oferta");
             Console.WriteLine("5 - Consultar reservas das minhas ofertas");
+            Console.WriteLine("6 - Editar meus dados");
             Console.WriteLine("0 - Voltar");
 
             int opcao = Utils.LerInteiro("Escolha uma opção: ");
 
-            switch (opcao)
+            try
             {
-                case 1:
-                    MostrarOperacaoPendente("Cadastro de oferta", "OfertaService");
-                    break;
-                case 2:
-                    MostrarOperacaoPendente("Listagem de ofertas", "OfertaService");
-                    break;
-                case 3:
-                    MostrarOperacaoPendente("Edição de oferta", "OfertaService");
-                    break;
-                case 4:
-                    MostrarOperacaoPendente("Exclusão de oferta", "OfertaService");
-                    break;
-                case 5:
-                    MostrarOperacaoPendente("Consulta de reservas", "ReservaService");
-                    break;
-                case 0:
-                    continuar = false;
-                    break;
-                default:
-                    Console.WriteLine("Opção inválida.");
-                    AguardarContinuacao();
-                    break;
+                switch (opcao)
+                {
+                    case 1:
+                        await CadastrarOfertaAsync(estabelecimento, ofertaService);
+                        break;
+                    case 2:
+                        MenuComum.ExibirOfertas(await ofertaService.ListarMinhasOfertasAsync(estabelecimento));
+                        break;
+                    case 3:
+                        await EditarOfertaAsync(estabelecimento, ofertaService);
+                        break;
+                    case 4:
+                        int ofertaId = Utils.LerInteiro("ID da oferta: ");
+                        await ofertaService.ExcluirOfertaAsync(estabelecimento, ofertaId);
+                        Console.WriteLine("Oferta excluída com sucesso.");
+                        break;
+                    case 5:
+                        MenuComum.ExibirReservas(await reservaService.ListarReservasRecebidasAsync(estabelecimento), recebidas: true);
+                        break;
+                    case 6:
+                        estabelecimento = await MenuComum.EditarDadosAsync(authService, estabelecimento);
+                        break;
+                    case 0:
+                        return;
+                    default:
+                        Console.WriteLine("Opção inválida.");
+                        break;
+                }
             }
+            catch (Exception erro) when (MenuComum.EhErroOperacao(erro))
+            {
+                MenuComum.ExibirErroOperacao(erro);
+            }
+
+            Utils.AguardarContinuacao();
         }
     }
 
-    private static void MostrarOperacaoPendente(string operacao, string serviceNecessario)
+    private static async Task CadastrarOfertaAsync(Usuario estabelecimento, OfertaService ofertaService)
     {
-        Console.WriteLine();
-        Console.WriteLine($"{operacao} aguardando implementação no {serviceNecessario}.");
-        AguardarContinuacao();
+        var (alimento, quantidade, validade, inicio, fim) = LerDadosOferta();
+        Oferta oferta = await ofertaService.CadastrarOfertaAsync(estabelecimento, alimento, quantidade, validade, inicio, fim);
+        Console.WriteLine($"Oferta #{oferta.Id} cadastrada com sucesso.");
     }
 
-    private static void AguardarContinuacao()
+    private static async Task EditarOfertaAsync(Usuario estabelecimento, OfertaService ofertaService)
     {
-        Console.WriteLine();
-        Console.WriteLine("Pressione Enter para continuar.");
-        Console.ReadLine();
+        int ofertaId = Utils.LerInteiro("ID da oferta: ");
+        var (alimento, quantidade, validade, inicio, fim) = LerDadosOferta();
+        await ofertaService.EditarOfertaAsync(estabelecimento, ofertaId, alimento, quantidade, validade, inicio, fim);
+        Console.WriteLine("Oferta atualizada com sucesso.");
+    }
+
+    private static (string, decimal, DateTime, DateTime, DateTime) LerDadosOferta()
+    {
+        string alimento = Utils.LerCampo("Alimento: ");
+        decimal quantidade = Utils.LerDecimal("Quantidade total (kg): ");
+        DateTime validade = Utils.LerDateTime("Validade (dd/MM/aaaa HH:mm): ");
+        DateTime inicio = Utils.LerDateTime("Início da retirada (dd/MM/aaaa HH:mm): ");
+        DateTime fim = Utils.LerDateTime("Fim da retirada (dd/MM/aaaa HH:mm): ");
+        return (alimento, quantidade, validade, inicio, fim);
     }
 }

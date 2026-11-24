@@ -1,16 +1,16 @@
 using MesaViva.Models;
+using MesaViva.Services;
 
 namespace MesaViva.UI;
 
 public static class MenuInstituicao
 {
-    public static void Exibir(Usuario instituicao)
+    public static async Task ExibirAsync(
+        Usuario instituicao, AuthService authService, OfertaService ofertaService, ReservaService reservaService)
     {
-        bool continuar = true;
-
-        while (continuar)
+        while (true)
         {
-            Console.Clear();
+            Utils.LimparTela();
             Console.WriteLine("========== MENU DA INSTITUIÇÃO ==========");
             Console.WriteLine($"Instituição: {instituicao.Nome}");
             Console.WriteLine("1 - Consultar ofertas disponíveis");
@@ -18,51 +18,55 @@ public static class MenuInstituicao
             Console.WriteLine("3 - Listar minhas reservas");
             Console.WriteLine("4 - Cancelar reserva");
             Console.WriteLine("5 - Confirmar coleta");
-            Console.WriteLine("6 - Voltar");
+            Console.WriteLine("6 - Consultar ofertas urgentes");
+            Console.WriteLine("7 - Editar meus dados");
             Console.WriteLine("0 - Sair do menu");
 
             int opcao = Utils.LerInteiro("Escolha uma opção: ");
 
-            switch (opcao)
+            try
             {
-                case 1:
-                    MostrarOperacaoPendente("Consulta de ofertas", "OfertaService");
-                    break;
-                case 2:
-                    MostrarOperacaoPendente("Reserva de oferta", "ReservaService");
-                    break;
-                case 3:
-                    MostrarOperacaoPendente("Listagem de reservas", "ReservaService");
-                    break;
-                case 4:
-                    MostrarOperacaoPendente("Cancelamento de reserva", "ReservaService");
-                    break;
-                case 5:
-                    MostrarOperacaoPendente("Confirmação de coleta", "ReservaService");
-                    break;
-                case 6:
-                case 0:
-                    continuar = false;
-                    break;
-                default:
-                    Console.WriteLine("Opção inválida.");
-                    AguardarContinuacao();
-                    break;
+                switch (opcao)
+                {
+                    case 1:
+                        MenuComum.ExibirOfertas(await ofertaService.ListarOfertasDisponiveisAsync(instituicao));
+                        break;
+                    case 2:
+                        int ofertaId = Utils.LerInteiro("ID da oferta: ");
+                        decimal quantidade = Utils.LerDecimal("Quantidade a reservar (kg): ");
+                        Reserva reserva = await reservaService.CriarReservaAsync(instituicao, ofertaId, quantidade);
+                        Console.WriteLine($"Reserva #{reserva.Id} realizada com sucesso.");
+                        break;
+                    case 3:
+                        MenuComum.ExibirReservas(await reservaService.ListarMinhasReservasAsync(instituicao), recebidas: false);
+                        break;
+                    case 4:
+                        await reservaService.CancelarReservaAsync(instituicao, Utils.LerInteiro("ID da reserva: "));
+                        Console.WriteLine("Reserva cancelada com sucesso.");
+                        break;
+                    case 5:
+                        await reservaService.ConfirmarColetaAsync(instituicao, Utils.LerInteiro("ID da reserva: "));
+                        Console.WriteLine("Coleta confirmada com sucesso.");
+                        break;
+                    case 6:
+                        MenuComum.ExibirOfertas(await ofertaService.ListarOfertasUrgentesAsync(instituicao));
+                        break;
+                    case 7:
+                        instituicao = await MenuComum.EditarDadosAsync(authService, instituicao);
+                        break;
+                    case 0:
+                        return;
+                    default:
+                        Console.WriteLine("Opção inválida.");
+                        break;
+                }
             }
+            catch (Exception erro) when (MenuComum.EhErroOperacao(erro))
+            {
+                MenuComum.ExibirErroOperacao(erro);
+            }
+
+            Utils.AguardarContinuacao();
         }
-    }
-
-    private static void MostrarOperacaoPendente(string operacao, string serviceNecessario)
-    {
-        Console.WriteLine();
-        Console.WriteLine($"{operacao} aguardando implementação no {serviceNecessario}.");
-        AguardarContinuacao();
-    }
-
-    private static void AguardarContinuacao()
-    {
-        Console.WriteLine();
-        Console.WriteLine("Pressione Enter para continuar.");
-        Console.ReadLine();
     }
 }
