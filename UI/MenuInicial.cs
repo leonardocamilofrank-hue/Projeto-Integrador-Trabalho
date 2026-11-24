@@ -48,7 +48,7 @@ public static class MenuInicial
         Utils.LimparTela();
         Console.WriteLine("========== LOGIN ==========");
 
-        string email = Utils.LerCampo("E-mail: ");
+        string email = Utils.LerTexto("E-mail: ");
         string senha = Utils.LerCampo("Senha: ");
 
         Usuario? usuario = await authService.FazerLoginAsync(email, senha);
@@ -81,11 +81,11 @@ public static class MenuInicial
         Utils.LimparTela();
         Console.WriteLine("========== CADASTRO ==========");
 
-        string nome = Utils.LerCampo("Nome: ");
-        string email = Utils.LerCampo("E-mail: ");
+        string nome = Utils.LerTexto("Nome: ");
+        string email = Utils.LerTexto("E-mail: ");
         string senha = Utils.LerCampo("Senha: ");
-        string telefone = Utils.LerCampo("Telefone: ");
-        string endereco = Utils.LerCampo("Endereço: ");
+        string telefone = Utils.LerTexto("Telefone: ");
+        string endereco = Utils.LerTexto("Endereço: ");
         string tipo = EscolherTipoConta();
 
         await authService.CadastrarUsuarioAsync(nome, email, senha, telefone, endereco, tipo);

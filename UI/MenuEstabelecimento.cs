@@ -80,7 +80,7 @@ public static class MenuEstabelecimento
 
     private static (string, decimal, DateTime, DateTime, DateTime) LerDadosOferta()
     {
-        string alimento = Utils.LerCampo("Alimento: ");
+        string alimento = Utils.LerTexto("Alimento: ");
         decimal quantidade = Utils.LerDecimal("Quantidade total (kg): ");
         DateTime validade = Utils.LerDateTime("Validade (dd/MM/aaaa HH:mm): ");
         DateTime inicio = Utils.LerDateTime("Início da retirada (dd/MM/aaaa HH:mm): ");
