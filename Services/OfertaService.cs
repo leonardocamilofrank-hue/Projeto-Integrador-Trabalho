@@ -15,6 +15,12 @@ public class OfertaService
     {
         estabelecimento.ExigirTipo(Usuario.TipoEstabelecimento);
         Oferta oferta = ValidarDados(alimento, quantidadeTotal, validade, inicioRetirada, fimRetirada);
+        if (!oferta.PodeReservarEm(DateTime.Now))
+        {
+            throw new InvalidOperationException(
+                "Não é possível cadastrar uma oferta de alimento vencido ou com o período de retirada encerrado.");
+        }
+
         oferta.EstabelecimentoId = estabelecimento.Id;
 
         await using var context = new AppDbContext();
