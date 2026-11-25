@@ -5,7 +5,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MesaViva.Services;
 
-public sealed record ReservaDetalhada(Reserva Reserva, string Alimento, string Estabelecimento, string Instituicao);
+public sealed record ReservaDetalhada(
+    Reserva Reserva, string Alimento, string Estabelecimento, string Instituicao,
+    DateTime InicioRetirada, DateTime FimRetirada);
 
 public class ReservaService
 {
@@ -79,7 +81,9 @@ public class ReservaService
                where estabelecimentoId == null || oferta.EstabelecimentoId == estabelecimentoId
                where instituicaoId == null || reserva.InstituicaoId == instituicaoId
                orderby reserva.DataReserva descending, reserva.Id descending
-               select new ReservaDetalhada(reserva, oferta.Alimento, estabelecimento.Nome, instituicao.Nome);
+               select new ReservaDetalhada(
+                   reserva, oferta.Alimento, estabelecimento.Nome, instituicao.Nome,
+                   oferta.InicioRetirada, oferta.FimRetirada);
     }
 
     private static async Task AlterarReservaAsync(Usuario instituicao, int reservaId, Action<Reserva> alterar)
