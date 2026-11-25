@@ -7,7 +7,7 @@
 
 ## 1. Sobre o projeto
 
-O **MesaViva** é um sistema de console desenvolvido em C# com .NET 10, que conecta estabelecimentos com alimentos excedentes a instituições interessadas em recebê-los. Os dados são armazenados no MySQL por meio do Entity Framework Core (EF Core).
+O **MesaViva** é um aplicativo desktop para Windows, desenvolvido em C# com .NET 10 e Windows Forms, que conecta estabelecimentos com alimentos excedentes a instituições interessadas em recebê-los. Os dados são armazenados no MySQL por meio do Entity Framework Core (EF Core).
 
 ### Problema
 
@@ -26,41 +26,10 @@ Organizar a divulgação, a reserva e a retirada de alimentos excedentes, contro
 
 O usuário cria uma conta como estabelecimento ou instituição e realiza o login com e-mail e senha. Após a autenticação, o sistema apresenta o menu correspondente ao tipo de conta. Não existe perfil de administrador.
 
-### Menu inicial
-
-```text
-========== MESAVIVA ==========
-1 - Fazer login
-2 - Cadastrar conta
-0 - Sair
-```
-
-### Menu do estabelecimento
-
-```text
-1 - Cadastrar oferta
-2 - Listar minhas ofertas
-3 - Editar oferta
-4 - Excluir oferta
-5 - Consultar reservas das minhas ofertas
-6 - Editar meus dados
-0 - Voltar
-```
-
-### Menu da instituição
-
-```text
-1 - Consultar ofertas disponíveis
-2 - Reservar oferta
-3 - Listar minhas reservas
-4 - Cancelar reserva
-5 - Confirmar coleta
-6 - Consultar ofertas urgentes
-7 - Editar meus dados
-0 - Sair do menu
-```
-
-A opção `0` nos menus internos encerra a sessão e retorna ao menu inicial. Na edição cadastral, pressionar Enter em um campo mantém o valor atual.
+- **Tela inicial:** entre com e-mail e senha ou selecione **Criar uma conta MesaViva**.
+- **Estabelecimento:** em **Minhas ofertas**, cadastre alimentos e use os botões dos cards para editar ou excluir uma oferta. Abra **Reservas recebidas** para acompanhar as solicitações.
+- **Instituição:** em **Alimentos disponíveis** e **Ofertas urgentes**, escolha um alimento para reservar. Em **Minhas reservas**, consulte o horário de retirada, cancele uma reserva ativa ou confirme a coleta.
+- **Ambos os perfis:** **Meus dados** abre a edição do cadastro e **Sair da conta** retorna à tela de login.
 
 ### Exemplo prático
 
@@ -93,7 +62,7 @@ A situação indica a presença da implementação no código-fonte, não a apro
 |---|---|
 | RNF01 | Utilizar C# com .NET 10. |
 | RNF02 | Persistir dados no MySQL utilizando EF Core. |
-| RNF03 | Oferecer uma interface de console com menus interativos. |
+| RNF03 | Oferecer uma interface desktop para Windows com menus interativos. |
 | RNF04 | Aplicar conceitos de POO, como classes, métodos e encapsulamento de comportamentos. |
 | RNF05 | Separar modelos, regras de negócio, acesso a dados e interface. |
 | RNF06 | Validar entradas e apresentar mensagens de erro compreensíveis. |
@@ -356,6 +325,10 @@ Projeto-Integrador-Trabalho/
 │   ├── OfertaService.cs
 │   └── ReservaService.cs
 ├── UI/
+│   ├── LoginForm.cs
+│   ├── PainelForm.cs
+│   ├── Dialogos.cs
+│   ├── EstiloMesaViva.cs
 │   ├── MenuInicial.cs
 │   ├── MenuEstabelecimento.cs
 │   ├── MenuInstituicao.cs
@@ -374,7 +347,7 @@ Projeto-Integrador-Trabalho/
 | `Services/` | Regras de negócio, permissões, consultas e persistência. |
 | `Data/` | Configuração do EF Core, relacionamentos e acesso ao banco. |
 | `Migrations/` | Histórico de evolução da estrutura do banco. |
-| `UI/` | Menus, apresentação de dados e interação com o usuário. |
+| `UI/` | Telas Windows Forms, estilos compartilhados e menus de console preservados como referência. |
 | `Utils.cs` | Entrada de textos, inteiros, decimais, datas e formatação de quantidades. |
 | `Program.cs` | Inicialização da aplicação e composição dos Services. |
 
@@ -384,7 +357,7 @@ O projeto aplica os conceitos da Aula 11.5 — Entity Framework Core, do profess
 
 ### 8.1. Pré-requisitos
 
-- SDK do .NET 10.
+- Windows e SDK do .NET 10.
 - Servidor MySQL em execução e acessível.
 - Uma conta MySQL com permissões para o banco do projeto e aplicação das migrations.
 - Git (para clonar o repositório).
@@ -441,9 +414,9 @@ dotnet build .\Projeto-Integrador-Trabalho.csproj
 dotnet run --project .\Projeto-Integrador-Trabalho.csproj
 ```
 
-Se a variável `MESAVIVA_DB` não estiver configurada, o programa exibirá uma mensagem e encerrará a execução.
+O comando `dotnet run` abre a janela de login. Se a variável `MESAVIVA_DB` não estiver configurada, o programa exibirá uma mensagem e encerrará a execução.
 
-Na digitação de quantidades, utilize vírgula como separador decimal (por exemplo, `2,50`). Datas e horários devem seguir o formato `dd/MM/aaaa HH:mm`.
+As quantidades são exibidas em quilogramas. Nos formulários, o campo numérico usa o separador decimal do Windows. Digite as datas e horas com os separadores já exibidos nos campos (ex.: `30/11/2026 14:30`). O telefone exige 11 dígitos com DDD e é salvo no formato `(48) 99624-7660`.
 
 ### 8.6. Persistência e segurança
 
@@ -467,7 +440,8 @@ O EF Core é um ORM: ele mapeia as classes C# para as tabelas, mas não substitu
 
 | Tecnologia | Utilização |
 |---|---|
-| C# / .NET 10 | Aplicação de console e programação orientada a objetos. |
+| C# / .NET 10 | Aplicativo desktop e programação orientada a objetos. |
+| Windows Forms | Janelas, navegação e formulários. |
 | MySQL | Banco de dados relacional. |
 | Entity Framework Core | Mapeamento e persistência de dados. |
 | `Microsoft.EntityFrameworkCore.Design` 10.0.12 | Ferramentas de design e migrations. |
