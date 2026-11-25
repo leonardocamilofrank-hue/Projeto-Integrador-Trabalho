@@ -6,6 +6,7 @@ public class Usuario
 {
     public const string TipoEstabelecimento = "ESTABELECIMENTO";
     public const string TipoInstituicao = "INSTITUICAO";
+    internal const string ExemploTelefone = "(48) 99624-7660";
 
     public int Id { get; set; }
     public string Nome { get; set; } = string.Empty;
@@ -50,9 +51,11 @@ public class Usuario
             throw new ArgumentException("Informe um e-mail válido, como nome@exemplo.com.", nameof(email));
         }
 
-        if (string.IsNullOrWhiteSpace(telefone))
+        if (!TentarFormatarTelefone(telefone, out string telefoneFormatado))
         {
-            throw new ArgumentException("O telefone é obrigatório.", nameof(telefone));
+            throw new ArgumentException(
+                $"Informe um telefone com 11 dígitos, incluindo o DDD (ex.: {ExemploTelefone}).",
+                nameof(telefone));
         }
 
         if (string.IsNullOrWhiteSpace(endereco))
@@ -62,8 +65,21 @@ public class Usuario
 
         Nome = nome.Trim();
         Email = emailNormalizado;
-        Telefone = telefone.Trim();
+        Telefone = telefoneFormatado;
         Endereco = endereco.Trim();
+    }
+
+    internal static bool TentarFormatarTelefone(string? telefone, out string formatado)
+    {
+        formatado = string.Empty;
+        string digitos = new((telefone ?? string.Empty)
+            .Where(caractere => caractere is not (' ' or '(' or ')' or '-')).ToArray());
+
+        if (digitos.Length != 11 || !digitos.All(char.IsAsciiDigit))
+            return false;
+
+        formatado = $"({digitos[..2]}) {digitos[2..7]}-{digitos[7..]}";
+        return true;
     }
 
     internal static bool TentarNormalizarEmail(string? email, out string emailNormalizado)
