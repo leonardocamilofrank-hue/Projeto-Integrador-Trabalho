@@ -36,6 +36,8 @@ internal static class EstiloMesaViva
 
     public static void PrepararJanela(Form janela, Size tamanho, Size minimo)
     {
+        // A escala inicial precisa incluir os controles adicionados pelo formulário.
+        janela.SuspendLayout();
         janela.AutoScaleDimensions = new SizeF(96, 96);
         janela.AutoScaleMode = AutoScaleMode.Dpi;
         janela.Font = Fonte();
@@ -45,6 +47,7 @@ internal static class EstiloMesaViva
         janela.MinimumSize = minimo;
         janela.Load += (_, _) =>
         {
+            janela.ResumeLayout(performLayout: true);
             Size area = Screen.FromControl(janela).WorkingArea.Size;
             janela.MinimumSize = new Size(Math.Min(janela.MinimumSize.Width, area.Width),
                 Math.Min(janela.MinimumSize.Height, area.Height));
@@ -206,7 +209,64 @@ internal static class EstiloMesaViva
     {
         var area = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = margem, Margin = Padding.Empty };
         area.Controls.Add(conteudo);
+
+        int alturaAnterior = conteudo.Height;
+        bool recalculoPendente = false;
+        conteudo.SizeChanged += (_, _) =>
+        {
+            if (alturaAnterior == conteudo.Height)
+                return;
+
+            alturaAnterior = conteudo.Height;
+            if (!area.IsHandleCreated || recalculoPendente)
+                return;
+
+            // A grade pode mudar de altura enquanto a área rolável ainda está se redimensionando.
+            recalculoPendente = true;
+            area.BeginInvoke(() =>
+            {
+                recalculoPendente = false;
+                if (!area.IsDisposed)
+                    area.PerformLayout();
+            });
+        };
         return area;
+    }
+
+    public static TableLayoutPanel LimitarLargura(Control conteudo, int larguraMaxima, bool centralizar = false)
+    {
+        var faixa = new TableLayoutPanel
+        {
+            AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Top,
+            ColumnCount = centralizar ? 3 : 2, RowCount = 1, Margin = Padding.Empty
+        };
+        var larguraConteudo = new ColumnStyle(SizeType.Absolute, larguraMaxima);
+        if (centralizar)
+            faixa.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        faixa.ColumnStyles.Add(larguraConteudo);
+        faixa.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, centralizar ? 50 : 100));
+        faixa.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        faixa.Controls.Add(conteudo, centralizar ? 1 : 0, 0);
+
+        void AjustarLargura()
+        {
+            int disponivel = Math.Max(0, faixa.ClientSize.Width - faixa.Padding.Horizontal);
+            int largura = Math.Min(faixa.LogicalToDeviceUnits(larguraMaxima), disponivel);
+            if (larguraConteudo.Width != largura)
+                larguraConteudo.Width = largura;
+        }
+
+        faixa.ClientSizeChanged += (_, _) => AjustarLargura();
+        faixa.PaddingChanged += (_, _) => AjustarLargura();
+        faixa.DpiChangedAfterParent += (_, _) => AjustarLargura();
+        return faixa;
+    }
+
+    public static void EscalarControleDinamico(Control controle, Control referencia)
+    {
+        float escala = referencia.DeviceDpi / 96f;
+        if (escala != 1)
+            controle.Scale(new SizeF(escala, escala));
     }
 
     private static void AjustarRotulos(TableLayoutPanel coluna)

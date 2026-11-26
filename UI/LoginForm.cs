@@ -53,24 +53,22 @@ internal sealed class LoginForm : Form
         };
         EstiloMesaViva.AdicionarLinha(_conteudo, cadastrar);
 
-        var centralizar = new TableLayoutPanel
+        TableLayoutPanel faixa = EstiloMesaViva.LimitarLargura(_conteudo, 420, centralizar: true);
+        var area = EstiloMesaViva.AreaRolavel(faixa, new Padding(20, 26, 20, 26));
+
+        void CentralizarNaVertical()
         {
-            Dock = DockStyle.Top, AutoSize = true, ColumnCount = 3, RowCount = 1,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink
-        };
-        var larguraCartao = new ColumnStyle(SizeType.Absolute, 420);
-        centralizar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        centralizar.ColumnStyles.Add(larguraCartao);
-        centralizar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        centralizar.Controls.Add(_conteudo, 1, 0);
-        var area = EstiloMesaViva.AreaRolavel(centralizar, new Padding(20, 26, 20, 26));
-        centralizar.SizeChanged += (_, _) =>
-        {
-            int largura = Math.Min(LogicalToDeviceUnits(420), centralizar.ClientSize.Width);
-            if (largura > 0 && larguraCartao.Width != largura)
-                larguraCartao.Width = largura;
-        };
+            int folga = area.ClientSize.Height - area.Padding.Vertical - _conteudo.Height;
+            int topo = Math.Max(0, folga / 2);
+            if (faixa.Padding.Top != topo)
+                faixa.Padding = new Padding(0, topo, 0, 0);
+        }
+
+        area.ClientSizeChanged += (_, _) => CentralizarNaVertical();
+        area.PaddingChanged += (_, _) => CentralizarNaVertical();
+        _conteudo.SizeChanged += (_, _) => CentralizarNaVertical();
         Controls.Add(area);
+        Load += (_, _) => CentralizarNaVertical();
         ActiveControl = _email;
         AcceptButton = entrar;
     }

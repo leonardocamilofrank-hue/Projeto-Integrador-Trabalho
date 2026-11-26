@@ -7,6 +7,8 @@ internal sealed class PainelForm : Form
 {
     private enum Pagina { MinhasOfertas, Recebidas, Disponiveis, Urgentes, MinhasReservas, Perfil }
 
+    private const int LarguraConteudo = 1250;
+    private const int LarguraCartaoSimples = 650;
     private readonly AuthService _auth;
     private Usuario _usuario;
     private readonly OfertaService _ofertas = new();
@@ -45,7 +47,7 @@ internal sealed class PainelForm : Form
         var topo = new TableLayoutPanel
         {
             AutoSize = true, Dock = DockStyle.Top, ColumnCount = 2, RowCount = 1, BackColor = EstiloMesaViva.Superficie,
-            Padding = new Padding(24, 13, 24, 13), Margin = Padding.Empty
+            Margin = Padding.Empty
         };
         topo.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         topo.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
@@ -63,8 +65,29 @@ internal sealed class PainelForm : Form
         atualizar.Click += async (_, _) => await AbrirPaginaAsync(_pagina);
         topo.Controls.Add(atualizar, 1, 0);
 
-        _conteudo = EstiloMesaViva.AreaRolavel(_lista, new Padding(EstiloMesaViva.EspacoExterno));
-        area.Controls.Add(topo, 0, 0);
+        TableLayoutPanel faixaTopo = EstiloMesaViva.LimitarLargura(topo, LarguraConteudo, centralizar: true);
+        faixaTopo.BackColor = EstiloMesaViva.Superficie;
+        faixaTopo.Padding = new Padding(EstiloMesaViva.EspacoExterno, 13, EstiloMesaViva.EspacoExterno, 13);
+        TableLayoutPanel faixaLista = EstiloMesaViva.LimitarLargura(_lista, LarguraConteudo, centralizar: true);
+        _conteudo = EstiloMesaViva.AreaRolavel(faixaLista, new Padding(EstiloMesaViva.EspacoExterno));
+
+        void AlinharCabecalho()
+        {
+            if (_conteudo.ClientSize.Width <= 0)
+                return;
+
+            Padding margem = faixaTopo.Padding;
+            int barra = Math.Max(0, faixaTopo.ClientSize.Width - _conteudo.ClientSize.Width);
+            margem.Left = _conteudo.Padding.Left;
+            margem.Right = _conteudo.Padding.Right + barra;
+            if (faixaTopo.Padding != margem)
+                faixaTopo.Padding = margem;
+        }
+
+        faixaTopo.ClientSizeChanged += (_, _) => AlinharCabecalho();
+        _conteudo.ClientSizeChanged += (_, _) => AlinharCabecalho();
+        _conteudo.PaddingChanged += (_, _) => AlinharCabecalho();
+        area.Controls.Add(faixaTopo, 0, 0);
         area.Controls.Add(_conteudo, 0, 1);
         _raiz.Controls.Add(area, 1, 0);
         Controls.Add(_raiz);
@@ -169,7 +192,11 @@ internal sealed class PainelForm : Form
             AdicionarNaLista(EstiloMesaViva.Legenda(descricao));
     }
 
-    private void AdicionarNaLista(Control controle) => EstiloMesaViva.AdicionarLinha(_lista, controle);
+    private void AdicionarNaLista(Control controle)
+    {
+        EstiloMesaViva.EscalarControleDinamico(controle, this);
+        EstiloMesaViva.AdicionarLinha(_lista, controle);
+    }
 
     private async Task MostrarMinhasOfertasAsync()
     {
@@ -186,7 +213,7 @@ internal sealed class PainelForm : Form
         if (itens.Count == 0)
             AdicionarEstadoVazio("Ainda não há ofertas cadastradas.");
         else
-            AdicionarNaLista(CriarGrade(itens.Select(CriarCardOferta).ToArray(), 2, 330));
+            AdicionarNaLista(CriarGradeOfertas(itens));
     }
 
     private async Task MostrarOfertasAsync(bool urgentes)
@@ -202,8 +229,11 @@ internal sealed class PainelForm : Form
         if (itens.Count == 0)
             AdicionarEstadoVazio(urgentes ? "Nenhuma oferta urgente no momento." : "Nenhum alimento disponível no momento.");
         else
-            AdicionarNaLista(CriarGrade(itens.Select(CriarCardOferta).ToArray(), 2, 330));
+            AdicionarNaLista(CriarGradeOfertas(itens));
     }
+
+    private TableLayoutPanel CriarGradeOfertas(IEnumerable<OfertaComDisponibilidade> ofertas) =>
+        CriarGrade(ofertas.Select(CriarCardOferta).ToArray(), maximoColunas: 3, larguraMinima: 365, larguraMaxima: 420);
 
     private Control CriarCardOferta(OfertaComDisponibilidade item)
     {
@@ -219,7 +249,7 @@ internal sealed class PainelForm : Form
             : 0;
         EstiloMesaViva.AdicionarLinha(cartao, new ProgressBar
         {
-            Dock = DockStyle.Top, Height = LogicalToDeviceUnits(10), Value = percentual,
+            Dock = DockStyle.Top, Height = 10, Value = percentual,
             Margin = new Padding(0, 3, 0, 10), AccessibleName = $"{percentual}% da quantidade total disponível"
         });
         AdicionarDetalhe(cartao, $"Validade  ·  {Utils.FormatarData(oferta.Validade)}");
@@ -302,8 +332,9 @@ internal sealed class PainelForm : Form
 
         if (itens.Count == 0)
             AdicionarEstadoVazio("Nenhuma reserva encontrada.");
-        foreach (ReservaDetalhada item in itens)
-            AdicionarNaLista(CriarCardReserva(item, recebidas));
+        else
+            AdicionarNaLista(CriarGrade(itens.Select(item => CriarCardReserva(item, recebidas)).ToArray(),
+                maximoColunas: 2, larguraMinima: 400, larguraMaxima: 520));
     }
 
     private Control CriarCardReserva(ReservaDetalhada item, bool recebida)
@@ -367,7 +398,7 @@ internal sealed class PainelForm : Form
         Button editar = EstiloMesaViva.Botao("Editar dados");
         editar.Click += (_, _) => EditarPerfil();
         AdicionarAcoes(cartao, editar);
-        AdicionarNaLista(cartao);
+        AdicionarNaLista(EstiloMesaViva.LimitarLargura(cartao, LarguraCartaoSimples));
     }
 
     private void EditarPerfil()
@@ -426,50 +457,73 @@ internal sealed class PainelForm : Form
             EstiloMesaViva.AdicionarLinha(cartao, valor);
             return cartao;
         }).ToArray();
-        AdicionarNaLista(CriarGrade(cartoes, 3, 155));
+        AdicionarNaLista(CriarGrade(cartoes, maximoColunas: 3, larguraMinima: 155, larguraMaxima: 325));
     }
 
     private void AdicionarEstadoVazio(string mensagem)
     {
-        TableLayoutPanel cartao = EstiloMesaViva.Cartao();
-        AdicionarDetalhe(cartao, mensagem);
-        AdicionarNaLista(cartao);
+        TableLayoutPanel cartao = EstiloMesaViva.Cartao(EstiloMesaViva.EspacoExterno);
+        cartao.BackColor = EstiloMesaViva.VerdeSuave;
+        Label aviso = EstiloMesaViva.Rotulo(mensagem);
+        aviso.ForeColor = EstiloMesaViva.VerdeEscuro;
+        EstiloMesaViva.AdicionarLinha(cartao, aviso);
+        AdicionarNaLista(EstiloMesaViva.LimitarLargura(cartao, LarguraCartaoSimples));
     }
 
-    private TableLayoutPanel CriarGrade(IReadOnlyList<Control> cartoes, int maximoColunas, int larguraMinima)
+    private static TableLayoutPanel CriarGrade(IReadOnlyList<Control> cartoes, int maximoColunas, int larguraMinima, int larguraMaxima)
     {
         TableLayoutPanel grade = EstiloMesaViva.Coluna();
-        int colunasAtuais = 0;
-        void AjustarColunas()
+        (int Colunas, int Largura, int Espaco) medidasAtuais = default;
+        void AjustarGrade()
         {
-            int espaco = LogicalToDeviceUnits(EstiloMesaViva.EspacoInterno);
-            int colunas = Math.Clamp((grade.ClientSize.Width + espaco) / (LogicalToDeviceUnits(larguraMinima) + espaco),
-                1, maximoColunas);
-            if (colunas == colunasAtuais)
+            int disponivel = grade.ClientSize.Width;
+            if (!grade.IsHandleCreated || disponivel <= 0)
                 return;
 
-            colunasAtuais = colunas;
+            int espaco = grade.LogicalToDeviceUnits(EstiloMesaViva.EspacoInterno);
+            int colunas = Math.Clamp((disponivel + espaco) / (grade.LogicalToDeviceUnits(larguraMinima) + espaco),
+                1, Math.Min(maximoColunas, cartoes.Count));
+            int largura = Math.Min(grade.LogicalToDeviceUnits(larguraMaxima), (disponivel + espaco) / colunas - espaco);
+            var medidas = (colunas, largura, espaco);
+            if (medidas == medidasAtuais)
+                return;
+
+            bool reorganizar = colunas != medidasAtuais.Colunas || espaco != medidasAtuais.Espaco;
+            medidasAtuais = medidas;
             grade.SuspendLayout();
-            grade.Controls.Clear();
-            grade.ColumnStyles.Clear();
-            grade.RowStyles.Clear();
-            grade.ColumnCount = colunas;
-            grade.RowCount = (cartoes.Count + colunas - 1) / colunas;
-            for (int coluna = 0; coluna < colunas; coluna++)
-                grade.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / colunas));
-            for (int linha = 0; linha < grade.RowCount; linha++)
-                grade.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            for (int i = 0; i < cartoes.Count; i++)
+            if (reorganizar)
             {
-                int coluna = i % colunas;
-                cartoes[i].Margin = new Padding(0, 0, coluna == colunas - 1 ? 0 : espaco, espaco);
-                grade.Controls.Add(cartoes[i], coluna, i / colunas);
+                grade.ColumnStyles.Clear();
+                grade.RowStyles.Clear();
+                grade.ColumnCount = colunas + 1;
+                grade.RowCount = (cartoes.Count + colunas - 1) / colunas;
+                for (int coluna = 0; coluna < colunas; coluna++)
+                    grade.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute));
+                grade.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+                for (int linha = 0; linha < grade.RowCount; linha++)
+                    grade.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                for (int i = 0; i < cartoes.Count; i++)
+                {
+                    int coluna = i % colunas;
+                    cartoes[i].Margin = new Padding(0, 0, coluna == colunas - 1 ? 0 : espaco, espaco);
+                    grade.SetCellPosition(cartoes[i], new TableLayoutPanelCellPosition(coluna, i / colunas));
+                }
             }
+            for (int coluna = 0; coluna < colunas; coluna++)
+                grade.ColumnStyles[coluna].Width = largura + (coluna < colunas - 1 ? espaco : 0);
             grade.ResumeLayout();
         }
 
-        grade.ClientSizeChanged += (_, _) => AjustarColunas();
-        AjustarColunas();
+        grade.SuspendLayout();
+        grade.Controls.AddRange(cartoes.ToArray());
+        grade.HandleCreated += (_, _) => AjustarGrade();
+        grade.ClientSizeChanged += (_, _) => AjustarGrade();
+        grade.DpiChangedAfterParent += (_, _) =>
+        {
+            medidasAtuais = default;
+            AjustarGrade();
+        };
+        grade.ResumeLayout();
         return grade;
     }
 
@@ -492,7 +546,8 @@ internal sealed class PainelForm : Form
     {
         var acoes = new FlowLayoutPanel
         {
-            AutoSize = true, Dock = DockStyle.Top, Margin = new Padding(0, EstiloMesaViva.Espaco, 0, 0)
+            AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Top,
+            Margin = new Padding(0, EstiloMesaViva.Espaco, 0, 0)
         };
         acoes.Controls.AddRange(botoes);
         EstiloMesaViva.AdicionarLinha(cartao, acoes);
