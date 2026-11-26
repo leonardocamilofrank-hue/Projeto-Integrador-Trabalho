@@ -10,12 +10,13 @@ internal static class Program
     private static void Main()
     {
         ApplicationConfiguration.Initialize();
-        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("MESAVIVA_DB")))
+        using (var conexao = new ConexaoForm(ConexaoMySql.LerConfiguracao()))
         {
-            MessageBox.Show(
-                "Configure a variável de ambiente MESAVIVA_DB com a conexão do MySQL antes de iniciar o MesaViva.",
-                "Configuração necessária", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
+            if (conexao.ShowDialog() != DialogResult.OK)
+                return;
+
+            Environment.SetEnvironmentVariable(ConexaoMySql.Variavel, conexao.ConfiguracaoValidada,
+                EnvironmentVariableTarget.Process);
         }
 
         using var context = new AppDbContext();

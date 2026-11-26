@@ -8,73 +8,38 @@ internal sealed class LoginForm : Form
     private readonly AuthService _authService;
     private readonly TextBox _email = EstiloMesaViva.Campo();
     private readonly TextBox _senha = EstiloMesaViva.Campo(senha: true);
-    private readonly FlowLayoutPanel _conteudo = new()
-    {
-        Dock = DockStyle.Fill,
-        FlowDirection = FlowDirection.TopDown,
-        WrapContents = false,
-        AutoScroll = true
-    };
+    private readonly TableLayoutPanel _conteudo = EstiloMesaViva.Cartao(32);
 
     public LoginForm(AuthService authService)
     {
         _authService = authService;
         Text = "MesaViva | Entrar";
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(500, 590);
-        Size = new Size(620, 690);
-        BackColor = EstiloMesaViva.Fundo;
-        Font = new Font("Segoe UI", 10);
-        AutoScaleMode = AutoScaleMode.Dpi;
+        EstiloMesaViva.PrepararJanela(this, new Size(600, 510), new Size(360, 300));
 
-        var centralizar = new TableLayoutPanel
-        {
-            Dock = DockStyle.Fill,
-            ColumnCount = 3,
-            RowCount = 3,
-            Padding = new Padding(24)
-        };
-        centralizar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        centralizar.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 390));
-        centralizar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-        centralizar.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
-        centralizar.RowStyles.Add(new RowStyle(SizeType.Absolute, 440));
-        centralizar.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
+        Label marca = EstiloMesaViva.Titulo("MesaViva", 16);
+        marca.ForeColor = EstiloMesaViva.Verde;
+        marca.Margin = new Padding(0, 0, 0, 24);
+        EstiloMesaViva.AdicionarLinha(_conteudo, marca);
+        EstiloMesaViva.AdicionarLinha(_conteudo, EstiloMesaViva.Titulo("Entrar"));
+        EstiloMesaViva.AdicionarLinha(_conteudo, EstiloMesaViva.Legenda(
+            "Conecte sua organização à doação e à coleta de alimentos."));
+        EstiloMesaViva.AdicionarCampo(_conteudo, "E-mail", _email);
+        EstiloMesaViva.AdicionarCampo(_conteudo, "Senha", _senha, espacoAbaixo: false);
+        EstiloMesaViva.AdicionarLinha(_conteudo, EstiloMesaViva.MostrarSenha(_senha));
 
-        var cartao = new Panel
-        {
-            Dock = DockStyle.Fill,
-            BackColor = Color.White,
-            Padding = new Padding(34),
-            BorderStyle = BorderStyle.FixedSingle
-        };
-        var marca = new Label
-        {
-            Text = "●  MESAVIVA",
-            AutoSize = true,
-            Font = new Font("Segoe UI", 15, FontStyle.Bold),
-            ForeColor = EstiloMesaViva.Verde,
-            Margin = new Padding(0, 2, 0, 24)
-        };
-        _conteudo.Controls.Add(marca);
-        _conteudo.Controls.Add(EstiloMesaViva.Titulo("Entrar", 22));
-        _conteudo.Controls.Add(EstiloMesaViva.Legenda("Conectando alimentos a quem precisa."));
-        EstiloMesaViva.AdicionarCampo(_conteudo, "E-mail", _email, 308);
-        EstiloMesaViva.AdicionarCampo(_conteudo, "Senha", _senha, 308);
-
-        var entrar = EstiloMesaViva.Botao("Entrar");
-        entrar.MinimumSize = new Size(308, 40);
+        Button entrar = EstiloMesaViva.Botao("Entrar");
+        entrar.Dock = DockStyle.Top;
         entrar.Margin = Padding.Empty;
         entrar.Click += async (_, _) => await EntrarAsync();
-        _conteudo.Controls.Add(entrar);
+        EstiloMesaViva.AdicionarLinha(_conteudo, entrar);
 
         var cadastrar = new LinkLabel
         {
-            Text = "Criar uma conta MesaViva",
-            AutoSize = true,
-            LinkColor = EstiloMesaViva.Verde,
-            Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
-            Margin = new Padding(0, 20, 0, 0)
+            Text = "Criar uma conta MesaViva", AutoSize = true,
+            LinkColor = EstiloMesaViva.Verde, ActiveLinkColor = EstiloMesaViva.VerdeEscuro,
+            VisitedLinkColor = EstiloMesaViva.Verde, Font = EstiloMesaViva.Fonte(10, FontStyle.Bold),
+            Margin = new Padding(0, 16, 0, 0)
         };
         cadastrar.LinkClicked += (_, _) =>
         {
@@ -86,10 +51,27 @@ internal sealed class LoginForm : Form
                 _senha.Focus();
             }
         };
-        _conteudo.Controls.Add(cadastrar);
-        cartao.Controls.Add(_conteudo);
-        centralizar.Controls.Add(cartao, 1, 1);
-        Controls.Add(centralizar);
+        EstiloMesaViva.AdicionarLinha(_conteudo, cadastrar);
+
+        var centralizar = new TableLayoutPanel
+        {
+            Dock = DockStyle.Top, AutoSize = true, ColumnCount = 3, RowCount = 1,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink
+        };
+        var larguraCartao = new ColumnStyle(SizeType.Absolute, 420);
+        centralizar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        centralizar.ColumnStyles.Add(larguraCartao);
+        centralizar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
+        centralizar.Controls.Add(_conteudo, 1, 0);
+        var area = EstiloMesaViva.AreaRolavel(centralizar, new Padding(20, 26, 20, 26));
+        centralizar.SizeChanged += (_, _) =>
+        {
+            int largura = Math.Min(LogicalToDeviceUnits(420), centralizar.ClientSize.Width);
+            if (largura > 0 && larguraCartao.Width != largura)
+                larguraCartao.Width = largura;
+        };
+        Controls.Add(area);
+        ActiveControl = _email;
         AcceptButton = entrar;
     }
 
@@ -98,27 +80,23 @@ internal sealed class LoginForm : Form
         Usuario? usuario = null;
         string email = _email.Text;
         string senha = _senha.Text;
-        _senha.Clear();
 
         if (!await OperacaoNaTela.ExecutarAsync(this, _conteudo, async () =>
         {
-            // A verificação PBKDF2 também usa CPU após a consulta ao banco.
+            if (string.IsNullOrWhiteSpace(email) || string.IsNullOrEmpty(senha))
+                throw new ArgumentException("Informe o e-mail e a senha.");
+
+            // A verificação PBKDF2 usa CPU depois da consulta ao banco.
             usuario = await Task.Run(() => _authService.FazerLoginAsync(email, senha));
             if (usuario is null)
-            {
                 throw new InvalidOperationException("E-mail ou senha inválidos.");
-            }
-
-            if (usuario.Tipo is not (Usuario.TipoEstabelecimento or Usuario.TipoInstituicao))
-            {
-                throw new InvalidOperationException("Tipo de conta não reconhecido.");
-            }
         }) || usuario is null)
         {
-            _senha.Focus();
+            (string.IsNullOrWhiteSpace(email) ? _email : _senha).Focus();
             return;
         }
 
+        _senha.Clear();
         using var painel = new PainelForm(_authService, usuario);
         Hide();
         try
@@ -148,16 +126,16 @@ internal sealed class CadastroForm : DialogoForm
     public string Email { get; private set; } = string.Empty;
 
     public CadastroForm(AuthService authService)
-        : base("Criar conta", "Escolha o perfil que representa sua organização.", 530)
+        : base("Criar conta", "Escolha o perfil que representa sua organização.", 600)
     {
         _authService = authService;
-        AdicionarCampo("Nome", _nome);
+        AdicionarCampo("Nome da organização", _nome);
         AdicionarCampo("E-mail", _email);
-        AdicionarCampo("Senha", _senha);
+        AdicionarCampo("Senha", _senha, espacoAbaixo: false);
+        AdicionarLinha(EstiloMesaViva.MostrarSenha(_senha));
         AdicionarCampo($"Telefone (ex.: {Usuario.ExemploTelefone})", _telefone);
         AdicionarCampo("Endereço", _endereco);
         _tipo.Items.AddRange(["Estabelecimento", "Instituição"]);
-        _tipo.SelectedIndex = 0;
         AdicionarCampo("Tipo de conta", _tipo);
         AdicionarAcoes("Cadastrar conta", CadastrarAsync);
     }
@@ -169,7 +147,12 @@ internal sealed class CadastroForm : DialogoForm
         string senha = _senha.Text;
         string telefone = _telefone.Text;
         string endereco = _endereco.Text;
-        string tipo = _tipo.SelectedIndex == 0 ? Usuario.TipoEstabelecimento : Usuario.TipoInstituicao;
+        string tipo = _tipo.SelectedIndex switch
+        {
+            0 => Usuario.TipoEstabelecimento,
+            1 => Usuario.TipoInstituicao,
+            _ => throw new ArgumentException("Selecione o tipo de conta.")
+        };
         Usuario cadastro = await Task.Run(() =>
             _authService.CadastrarUsuarioAsync(nome, email, senha, telefone, endereco, tipo));
         Email = cadastro.Email;

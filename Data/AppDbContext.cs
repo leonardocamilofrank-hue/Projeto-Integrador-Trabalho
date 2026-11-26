@@ -5,6 +5,10 @@ namespace MesaViva.Data;
 
 public class AppDbContext : DbContext
 {
+    public AppDbContext() { }
+
+    internal AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
     public DbSet<Usuario> Usuarios { get; set; } = null!;
     public DbSet<Oferta> Ofertas { get; set; } = null!;
     public DbSet<Reserva> Reservas { get; set; } = null!;
@@ -22,10 +26,11 @@ public class AppDbContext : DbContext
     protected override void OnConfiguring(
         DbContextOptionsBuilder optionsBuilder)
     {
-        string conexao = Environment.GetEnvironmentVariable("MESAVIVA_DB")
-            ?? throw new InvalidOperationException(
-                "Configure a variável MESAVIVA_DB.");
+        if (optionsBuilder.IsConfigured)
+            return;
 
+        string conexao = ConexaoMySql.LerConfiguracao()
+            ?? throw new InvalidOperationException("Configure a variável MESAVIVA_DB para usar os comandos do EF Core.");
         optionsBuilder.UseMySQL(conexao);
     }
 

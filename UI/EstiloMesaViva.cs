@@ -6,20 +6,60 @@ namespace MesaViva.UI;
 internal static class EstiloMesaViva
 {
     public static readonly Color Verde = Color.FromArgb(39, 104, 73);
-    public static readonly Color VerdeEscuro = Color.FromArgb(27, 75, 53);
-    public static readonly Color Fundo = Color.FromArgb(246, 248, 245);
-    public static readonly Color Texto = Color.FromArgb(39, 49, 43);
-    public static readonly Color TextoSuave = Color.FromArgb(111, 122, 114);
-    public static readonly Color Borda = Color.FromArgb(224, 231, 225);
+    public static readonly Color VerdeEscuro = Color.FromArgb(25, 60, 44);
+    public static readonly Color VerdeSuave = Color.FromArgb(232, 241, 233);
+    public static readonly Color Fundo = Color.FromArgb(244, 246, 243);
+    public static readonly Color Superficie = Color.White;
+    public static readonly Color Texto = Color.FromArgb(38, 56, 44);
+    public static readonly Color TextoSuave = Color.FromArgb(78, 97, 84);
+    public static readonly Color Borda = Color.FromArgb(223, 229, 223);
+    public static readonly Color Erro = Color.FromArgb(140, 55, 49);
+    public static readonly Color VermelhoSuave = Color.FromArgb(249, 235, 232);
+    private static readonly Color VerdeHover = Color.FromArgb(32, 86, 61);
+
+    public const int Espaco = 8;
+    public const int EspacoInterno = 16;
+    public const int EspacoExterno = 24;
+    public const int AlturaBotao = 40;
+
+    private static readonly Dictionary<(float, FontStyle), Font> Fontes = new();
+
+    public static Font Fonte(float tamanho = 10, FontStyle estilo = FontStyle.Regular)
+    {
+        if (!Fontes.TryGetValue((tamanho, estilo), out Font? fonte))
+        {
+            fonte = new Font("Segoe UI", tamanho, estilo);
+            Fontes.Add((tamanho, estilo), fonte);
+        }
+        return fonte;
+    }
+
+    public static void PrepararJanela(Form janela, Size tamanho, Size minimo)
+    {
+        janela.AutoScaleDimensions = new SizeF(96, 96);
+        janela.AutoScaleMode = AutoScaleMode.Dpi;
+        janela.Font = Fonte();
+        janela.BackColor = Fundo;
+        janela.ForeColor = Texto;
+        janela.ClientSize = tamanho;
+        janela.MinimumSize = minimo;
+        janela.Load += (_, _) =>
+        {
+            Size area = Screen.FromControl(janela).WorkingArea.Size;
+            janela.MinimumSize = new Size(Math.Min(janela.MinimumSize.Width, area.Width),
+                Math.Min(janela.MinimumSize.Height, area.Height));
+            janela.Size = new Size(Math.Min(janela.Width, area.Width), Math.Min(janela.Height, area.Height));
+        };
+    }
 
     public static Label Titulo(string texto, int tamanho = 24) => new()
     {
         Text = texto,
         AutoSize = true,
         UseMnemonic = false,
-        Font = new Font("Segoe UI", tamanho, FontStyle.Bold),
+        Font = Fonte(tamanho, FontStyle.Bold),
         ForeColor = Texto,
-        Margin = new Padding(0, 0, 0, 8)
+        Margin = new Padding(0, 0, 0, Espaco)
     };
 
     public static Label Legenda(string texto) => new()
@@ -27,7 +67,7 @@ internal static class EstiloMesaViva
         Text = texto,
         AutoSize = true,
         UseMnemonic = false,
-        Font = new Font("Segoe UI", 10),
+        Font = Fonte(),
         ForeColor = TextoSuave,
         Margin = new Padding(0, 0, 0, 20)
     };
@@ -38,23 +78,47 @@ internal static class EstiloMesaViva
         {
             Text = texto,
             AutoSize = true,
-            MinimumSize = new Size(110, 40),
+            MinimumSize = new Size(0, AlturaBotao),
             FlatStyle = FlatStyle.Flat,
-            BackColor = primario ? Verde : Color.White,
-            ForeColor = primario ? Color.White : VerdeEscuro,
-            Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+            BackColor = primario ? Verde : Superficie,
+            ForeColor = primario ? Superficie : VerdeEscuro,
+            Font = Fonte(9.5f, FontStyle.Bold),
             Cursor = Cursors.Hand,
             Padding = new Padding(12, 4, 12, 4),
             Margin = new Padding(0, 0, 8, 0)
         };
         botao.FlatAppearance.BorderColor = primario ? Verde : Borda;
+        botao.FlatAppearance.MouseOverBackColor = primario ? VerdeHover : VerdeSuave;
+        botao.FlatAppearance.MouseDownBackColor = primario ? VerdeEscuro : Borda;
         return botao;
+    }
+
+    public static Button BotaoMenu(string texto)
+    {
+        Button botao = Botao(texto, primario: false);
+        botao.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+        botao.Dock = DockStyle.Fill;
+        botao.TextAlign = ContentAlignment.MiddleLeft;
+        botao.Margin = new Padding(0, 0, 0, 4);
+        botao.FlatAppearance.BorderSize = 0;
+        botao.FlatAppearance.MouseOverBackColor = VerdeHover;
+        botao.FlatAppearance.MouseDownBackColor = Verde;
+        DestacarMenu(botao, false);
+        return botao;
+    }
+
+    public static void DestacarMenu(Button botao, bool selecionado)
+    {
+        botao.BackColor = selecionado ? VerdeSuave : VerdeEscuro;
+        botao.ForeColor = selecionado ? VerdeEscuro : Superficie;
+        botao.FlatAppearance.MouseOverBackColor = selecionado ? Borda : VerdeHover;
+        botao.FlatAppearance.MouseDownBackColor = selecionado ? Borda : Verde;
     }
 
     public static TextBox Campo(bool senha = false) => new()
     {
         BorderStyle = BorderStyle.FixedSingle,
-        Font = new Font("Segoe UI", 11),
+        Font = Fonte(11),
         UseSystemPasswordChar = senha
     };
 
@@ -67,7 +131,7 @@ internal static class EstiloMesaViva
         RejectInputOnFirstFailure = true,
         InsertKeyMode = InsertKeyMode.Overwrite,
         BorderStyle = BorderStyle.FixedSingle,
-        Font = new Font("Segoe UI", 11)
+        Font = Fonte(11)
     };
 
     public static MaskedTextBox CampoTelefone(string? telefone = null)
@@ -82,17 +146,79 @@ internal static class EstiloMesaViva
     {
         Text = texto,
         AutoSize = true,
-        Font = new Font("Segoe UI", 9, FontStyle.Bold),
+        Font = Fonte(9, FontStyle.Bold),
         ForeColor = Texto,
         Margin = new Padding(0, 0, 0, 0)
     };
 
-    public static void AdicionarCampo(FlowLayoutPanel painel, string rotulo, Control campo, int largura)
+    public static TableLayoutPanel Coluna()
     {
-        campo.Width = largura;
+        var coluna = new TableLayoutPanel
+        {
+            AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Top,
+            ColumnCount = 1, RowCount = 0, Margin = Padding.Empty
+        };
+        coluna.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        coluna.ClientSizeChanged += (_, _) => AjustarRotulos(coluna);
+        return coluna;
+    }
+
+    public static void AdicionarLinha(TableLayoutPanel coluna, Control controle)
+    {
+        int linha = coluna.RowCount++;
+        coluna.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        coluna.Controls.Add(controle, 0, linha);
+        if (controle is Label rotulo)
+            AjustarRotulo(coluna, rotulo);
+    }
+
+    public static void AdicionarCampo(TableLayoutPanel coluna, string rotulo, Control campo, bool espacoAbaixo = true)
+    {
+        campo.Dock = DockStyle.Top;
         campo.AccessibleName = rotulo;
-        campo.Margin = new Padding(0, 5, 0, 14);
-        painel.Controls.Add(Rotulo(rotulo));
-        painel.Controls.Add(campo);
+        campo.Margin = new Padding(0, 4, 0, espacoAbaixo ? 12 : 4);
+        AdicionarLinha(coluna, Rotulo(rotulo));
+        AdicionarLinha(coluna, campo);
+    }
+
+    public static CheckBox MostrarSenha(TextBox senha)
+    {
+        var mostrar = new CheckBox { Text = "Mostrar senha", AutoSize = true, Margin = new Padding(0, 0, 0, 14) };
+        mostrar.CheckedChanged += (_, _) => senha.UseSystemPasswordChar = !mostrar.Checked;
+        return mostrar;
+    }
+
+    public static TableLayoutPanel Cartao(int espacoInterno = EspacoInterno)
+    {
+        TableLayoutPanel cartao = Coluna();
+        cartao.BackColor = Superficie;
+        cartao.Padding = new Padding(espacoInterno);
+        cartao.Paint += (_, evento) =>
+        {
+            using var caneta = new Pen(Borda);
+            if (cartao.ClientSize.Width > 0 && cartao.ClientSize.Height > 0)
+                evento.Graphics.DrawRectangle(caneta, 0, 0, cartao.ClientSize.Width - 1, cartao.ClientSize.Height - 1);
+        };
+        return cartao;
+    }
+
+    public static Panel AreaRolavel(Control conteudo, Padding margem)
+    {
+        var area = new Panel { Dock = DockStyle.Fill, AutoScroll = true, Padding = margem, Margin = Padding.Empty };
+        area.Controls.Add(conteudo);
+        return area;
+    }
+
+    private static void AjustarRotulos(TableLayoutPanel coluna)
+    {
+        foreach (Label rotulo in coluna.Controls.OfType<Label>())
+            AjustarRotulo(coluna, rotulo);
+    }
+
+    private static void AjustarRotulo(TableLayoutPanel coluna, Label rotulo)
+    {
+        int largura = coluna.ClientSize.Width - coluna.Padding.Horizontal - rotulo.Margin.Horizontal;
+        if (largura > 0)
+            rotulo.MaximumSize = new Size(largura, 0);
     }
 }
