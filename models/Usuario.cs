@@ -7,6 +7,7 @@ public class Usuario
     public const string TipoEstabelecimento = "ESTABELECIMENTO";
     public const string TipoInstituicao = "INSTITUICAO";
     internal const string ExemploTelefone = "(48) 99624-7660";
+    private const int TamanhoMaximoEmail = 255;
 
     public int Id { get; set; }
     public string Nome { get; set; } = string.Empty;
@@ -44,6 +45,11 @@ public class Usuario
         if (string.IsNullOrWhiteSpace(email))
         {
             throw new ArgumentException("O e-mail é obrigatório.", nameof(email));
+        }
+
+        if (email.Trim().Length > TamanhoMaximoEmail)
+        {
+            throw new ArgumentException($"O e-mail deve ter no máximo {TamanhoMaximoEmail} caracteres.", nameof(email));
         }
 
         if (!TentarNormalizarEmail(email, out string emailNormalizado))
@@ -86,7 +92,7 @@ public class Usuario
     {
         emailNormalizado = string.Empty;
         string? emailAparado = email?.Trim();
-        if (string.IsNullOrEmpty(emailAparado) || emailAparado.Length > 255
+        if (string.IsNullOrEmpty(emailAparado) || emailAparado.Length > TamanhoMaximoEmail
             || !MailAddress.TryCreate(emailAparado, out MailAddress? endereco)
             || !string.IsNullOrEmpty(endereco.DisplayName)
             || !string.Equals(endereco.Address, emailAparado, StringComparison.OrdinalIgnoreCase))

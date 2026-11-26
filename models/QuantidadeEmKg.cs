@@ -2,6 +2,9 @@ namespace MesaViva.Models;
 
 internal static class QuantidadeEmKg
 {
+    public const decimal Maximo = 99_999_999.99m;
+    public const int CasasDecimais = 2;
+
     public static void Validar(decimal quantidade, string parametro, string descricao)
     {
         if (quantidade <= 0)
@@ -10,7 +13,7 @@ internal static class QuantidadeEmKg
         }
 
         // As colunas de quantidade no MySQL são DECIMAL(10,2).
-        if (quantidade > 99_999_999.99m || decimal.Round(quantidade, 2) != quantidade)
+        if (quantidade > Maximo || decimal.Round(quantidade, CasasDecimais) != quantidade)
         {
             throw new ArgumentOutOfRangeException(
                 parametro,

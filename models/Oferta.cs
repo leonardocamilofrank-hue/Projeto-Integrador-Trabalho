@@ -30,18 +30,21 @@ public class Oferta
             throw new ArgumentException("Informe o início e o fim da retirada.");
         }
 
+        if (Validade.Year < 1000 || InicioRetirada.Year < 1000 || FimRetirada.Year < 1000)
+        {
+            throw new ArgumentException("Informe datas de validade e retirada com ano a partir de 1000.");
+        }
+
+        if (InicioRetirada > Validade || FimRetirada > Validade)
+        {
+            throw new ArgumentException("O período de retirada não pode ultrapassar a validade do alimento.");
+        }
+
         if (InicioRetirada >= FimRetirada)
         {
             throw new ArgumentException(
                 "O início da retirada deve ser anterior ao fim.",
                 nameof(InicioRetirada));
-        }
-
-        if (Validade < InicioRetirada)
-        {
-            throw new ArgumentException(
-                "A validade do alimento não pode ser anterior ao início da retirada.",
-                nameof(Validade));
         }
     }
 
