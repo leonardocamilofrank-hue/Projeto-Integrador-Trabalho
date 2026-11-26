@@ -5,18 +5,20 @@ namespace MesaViva.UI;
 
 internal sealed class PainelForm : Form
 {
+    private enum Pagina { MinhasOfertas, Recebidas, Disponiveis, Urgentes, MinhasReservas, Perfil }
+
     private readonly AuthService _auth;
     private Usuario _usuario;
     private readonly OfertaService _ofertas = new();
     private readonly ReservaService _reservas = new();
+    private readonly Dictionary<Pagina, Button> _opcoes = new();
     private readonly TableLayoutPanel _raiz = new() { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-    private readonly Panel _conteudo = new() { Dock = DockStyle.Fill, Padding = new Padding(24), AutoScroll = true };
-    private readonly TableLayoutPanel _lista = new()
-    {
-        Dock = DockStyle.Top, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, ColumnCount = 1
-    };
-    private readonly Label _titulo = EstiloMesaViva.Titulo("MesaViva", 20);
-    private readonly Label _conta = new() { Dock = DockStyle.Fill, AutoEllipsis = true, UseMnemonic = false };
+    private readonly TableLayoutPanel _lista = EstiloMesaViva.Coluna();
+    private readonly Panel _conteudo;
+    private readonly Label _titulo = EstiloMesaViva.Titulo("MesaViva", 22);
+    private readonly Label _conta = EstiloMesaViva.Rotulo(string.Empty);
+    private Pagina _pagina;
+    private Button? _selecionado;
 
     public string Email => _usuario.Email;
     private bool EhEstabelecimento => _usuario.Tipo == Usuario.TipoEstabelecimento;
@@ -25,45 +27,48 @@ internal sealed class PainelForm : Form
     {
         _auth = auth;
         _usuario = usuario;
+        _pagina = EhEstabelecimento ? Pagina.MinhasOfertas : Pagina.Disponiveis;
         Text = "MesaViva";
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(760, 470);
-        Size = new Size(1080, 710);
-        BackColor = EstiloMesaViva.Fundo;
-        Font = new Font("Segoe UI", 10);
-        AutoScaleMode = AutoScaleMode.Dpi;
+        EstiloMesaViva.PrepararJanela(this, new Size(1136, 730), new Size(660, 390));
 
-        _raiz.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 222));
+        _raiz.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 216));
         _raiz.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         _raiz.Controls.Add(CriarMenu(), 0, 0);
+        DestacarPagina(_pagina);
 
         var area = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1, Margin = Padding.Empty };
-        area.RowStyles.Add(new RowStyle(SizeType.Absolute, 92));
+        area.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        area.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         area.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var topo = new TableLayoutPanel
         {
-            Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1, BackColor = Color.White,
-            Padding = new Padding(24, 15, 24, 12), Margin = Padding.Empty
+            AutoSize = true, Dock = DockStyle.Top, ColumnCount = 2, RowCount = 1, BackColor = EstiloMesaViva.Superficie,
+            Padding = new Padding(24, 13, 24, 13), Margin = Padding.Empty
         };
-        topo.RowStyles.Add(new RowStyle(SizeType.Percent, 66));
-        topo.RowStyles.Add(new RowStyle(SizeType.Percent, 34));
-        _titulo.Margin = Padding.Empty;
+        topo.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        topo.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        TableLayoutPanel identificacao = EstiloMesaViva.Coluna();
         _conta.ForeColor = EstiloMesaViva.Verde;
-        _conta.Margin = Padding.Empty;
+        _conta.Margin = new Padding(0, 0, 0, 5);
         AtualizarConta();
-        topo.Controls.Add(_titulo, 0, 0);
-        topo.Controls.Add(_conta, 0, 1);
+        EstiloMesaViva.AdicionarLinha(identificacao, _conta);
+        _titulo.Margin = Padding.Empty;
+        EstiloMesaViva.AdicionarLinha(identificacao, _titulo);
+        topo.Controls.Add(identificacao, 0, 0);
+        Button atualizar = EstiloMesaViva.Botao("Atualizar", primario: false);
+        atualizar.Anchor = AnchorStyles.Right;
+        atualizar.Margin = new Padding(8, 0, 0, 0);
+        atualizar.Click += async (_, _) => await AbrirPaginaAsync(_pagina);
+        topo.Controls.Add(atualizar, 1, 0);
 
-        _lista.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        _conteudo.Controls.Add(_lista);
+        _conteudo = EstiloMesaViva.AreaRolavel(_lista, new Padding(EstiloMesaViva.EspacoExterno));
         area.Controls.Add(topo, 0, 0);
         area.Controls.Add(_conteudo, 0, 1);
         _raiz.Controls.Add(area, 1, 0);
         Controls.Add(_raiz);
-        Shown += async (_, _) => await CarregarAsync(EhEstabelecimento
-            ? MostrarMinhasOfertasAsync
-            : () => MostrarOfertasAsync(urgentes: false));
+        Shown += async (_, _) => await AbrirPaginaAsync(_pagina);
     }
 
     private Control CriarMenu()
@@ -71,71 +76,87 @@ internal sealed class PainelForm : Form
         var menu = new TableLayoutPanel
         {
             Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Margin = Padding.Empty,
-            BackColor = EstiloMesaViva.VerdeEscuro, Padding = new Padding(16)
+            BackColor = EstiloMesaViva.VerdeEscuro, Padding = new Padding(EstiloMesaViva.EspacoInterno)
         };
-        menu.RowStyles.Add(new RowStyle(SizeType.Absolute, 60));
+        menu.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        menu.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         menu.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         menu.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        menu.Controls.Add(new Label
-        {
-            Text = "●  MesaViva", Dock = DockStyle.Fill, ForeColor = Color.White,
-            Font = new Font("Segoe UI", 18, FontStyle.Bold), TextAlign = ContentAlignment.MiddleLeft
-        }, 0, 0);
+        Label marca = EstiloMesaViva.Titulo("MesaViva", 19);
+        marca.ForeColor = EstiloMesaViva.Superficie;
+        marca.Margin = new Padding(8, 0, 0, 23);
+        menu.Controls.Add(marca, 0, 0);
 
-        var navegacao = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true
-        };
+        TableLayoutPanel navegacao = EstiloMesaViva.Coluna();
         if (EhEstabelecimento)
         {
-            AdicionarNavegacao(navegacao, "Minhas ofertas", () => CarregarAsync(MostrarMinhasOfertasAsync));
-            AdicionarNavegacao(navegacao, "Reservas recebidas", () => CarregarAsync(() => MostrarReservasAsync(recebidas: true)));
+            AdicionarNavegacao(navegacao, Pagina.MinhasOfertas, "Minhas ofertas");
+            AdicionarNavegacao(navegacao, Pagina.Recebidas, "Reservas recebidas");
         }
         else
         {
-            AdicionarNavegacao(navegacao, "Alimentos disponíveis", () => CarregarAsync(() => MostrarOfertasAsync(urgentes: false)));
-            AdicionarNavegacao(navegacao, "Ofertas urgentes", () => CarregarAsync(() => MostrarOfertasAsync(urgentes: true)));
-            AdicionarNavegacao(navegacao, "Minhas reservas", () => CarregarAsync(() => MostrarReservasAsync(recebidas: false)));
+            AdicionarNavegacao(navegacao, Pagina.Disponiveis, "Alimentos disponíveis");
+            AdicionarNavegacao(navegacao, Pagina.Urgentes, "Ofertas urgentes");
+            AdicionarNavegacao(navegacao, Pagina.MinhasReservas, "Minhas reservas");
         }
 
-        var rodape = new FlowLayoutPanel { AutoSize = true, FlowDirection = FlowDirection.TopDown, WrapContents = false, Dock = DockStyle.Fill };
-        AdicionarNavegacao(rodape, "Meus dados", MostrarPerfil);
-        Button sair = CriarBotaoMenu("Sair da conta");
+        AdicionarNavegacao(navegacao, Pagina.Perfil, "Meus dados");
+        Button sair = EstiloMesaViva.BotaoMenu("Sair da conta");
         sair.Click += (_, _) => Close();
-        rodape.Controls.Add(sair);
 
-        menu.Controls.Add(navegacao, 0, 1);
-        menu.Controls.Add(rodape, 0, 2);
+        menu.Controls.Add(EstiloMesaViva.AreaRolavel(navegacao, Padding.Empty), 0, 1);
+        menu.Controls.Add(sair, 0, 2);
         return menu;
     }
 
-    private static void AdicionarNavegacao(Control pai, string texto, Func<Task> acao)
+    private void AdicionarNavegacao(TableLayoutPanel pai, Pagina pagina, string texto)
     {
-        Button botao = CriarBotaoMenu(texto);
-        botao.Click += async (_, _) => await acao();
-        pai.Controls.Add(botao);
+        Button botao = EstiloMesaViva.BotaoMenu(texto);
+        botao.Click += async (_, _) => await AbrirPaginaAsync(pagina);
+        _opcoes.Add(pagina, botao);
+        EstiloMesaViva.AdicionarLinha(pai, botao);
     }
 
-    private static Button CriarBotaoMenu(string texto)
+    private void DestacarPagina(Pagina pagina)
     {
-        var botao = new Button
+        if (_selecionado is not null)
+            EstiloMesaViva.DestacarMenu(_selecionado, false);
+        _selecionado = _opcoes[pagina];
+        EstiloMesaViva.DestacarMenu(_selecionado, true);
+    }
+
+    private Task<bool> ExecutarAsync(Func<Task> acao) => OperacaoNaTela.ExecutarAsync(this, _raiz, acao);
+
+    private Task<bool> AbrirPaginaAsync(Pagina pagina)
+    {
+        return ExecutarAsync(async () =>
         {
-            Text = texto, Width = 180, Height = 43, FlatStyle = FlatStyle.Flat,
-            ForeColor = Color.White, BackColor = EstiloMesaViva.VerdeEscuro,
-            TextAlign = ContentAlignment.MiddleLeft, Padding = new Padding(8, 0, 0, 0),
-            Cursor = Cursors.Hand, Margin = new Padding(0, 0, 0, 3)
-        };
-        botao.FlatAppearance.BorderSize = 0;
-        botao.FlatAppearance.MouseOverBackColor = EstiloMesaViva.Verde;
-        return botao;
+            switch (pagina)
+            {
+                case Pagina.MinhasOfertas:
+                    await MostrarMinhasOfertasAsync();
+                    break;
+                case Pagina.Recebidas:
+                    await MostrarReservasAsync(recebidas: true);
+                    break;
+                case Pagina.Disponiveis:
+                case Pagina.Urgentes:
+                    await MostrarOfertasAsync(pagina == Pagina.Urgentes);
+                    break;
+                case Pagina.MinhasReservas:
+                    await MostrarReservasAsync(recebidas: false);
+                    break;
+                case Pagina.Perfil:
+                    MostrarPerfil();
+                    break;
+            }
+
+            _pagina = pagina;
+            DestacarPagina(pagina);
+        });
     }
 
-    private Task<bool> CarregarAsync(Func<Task> carregar)
-    {
-        return OperacaoNaTela.ExecutarAsync(this, _raiz, carregar);
-    }
-
-    private void ComecarPagina(string titulo, string descricao)
+    private void ComecarPagina(string titulo, string? descricao = null)
     {
         _titulo.Text = titulo;
         _conteudo.AutoScrollPosition = Point.Empty;
@@ -144,30 +165,28 @@ internal sealed class PainelForm : Form
 
         _lista.RowStyles.Clear();
         _lista.RowCount = 0;
-        AdicionarNaLista(EstiloMesaViva.Legenda(descricao));
+        if (descricao is not null)
+            AdicionarNaLista(EstiloMesaViva.Legenda(descricao));
     }
 
-    private void AdicionarNaLista(Control controle)
-    {
-        int linha = _lista.RowCount++;
-        _lista.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-        _lista.Controls.Add(controle, 0, linha);
-    }
+    private void AdicionarNaLista(Control controle) => EstiloMesaViva.AdicionarLinha(_lista, controle);
 
     private async Task MostrarMinhasOfertasAsync()
     {
         var itens = await _ofertas.ListarMinhasOfertasAsync(_usuario);
         ComecarPagina("Minhas ofertas", "Gerencie os alimentos publicados pela sua organização.");
+        AdicionarResumoEstabelecimento(itens);
+
         Button cadastrar = EstiloMesaViva.Botao("Cadastrar alimento");
         cadastrar.Anchor = AnchorStyles.Left;
-        cadastrar.Margin = new Padding(0, 0, 0, 14);
+        cadastrar.Margin = new Padding(0, 0, 0, EstiloMesaViva.EspacoInterno);
         cadastrar.Click += async (_, _) => await AbrirOfertaAsync(null);
         AdicionarNaLista(cadastrar);
 
         if (itens.Count == 0)
-            AdicionarNaLista(EstiloMesaViva.Legenda("Ainda não há ofertas cadastradas."));
-        foreach (OfertaComDisponibilidade item in itens)
-            AdicionarNaLista(CriarCardOferta(item, urgentes: false));
+            AdicionarEstadoVazio("Ainda não há ofertas cadastradas.");
+        else
+            AdicionarNaLista(CriarGrade(itens.Select(CriarCardOferta).ToArray(), 2, 330));
     }
 
     private async Task MostrarOfertasAsync(bool urgentes)
@@ -175,41 +194,55 @@ internal sealed class PainelForm : Form
         var itens = urgentes
             ? await _ofertas.ListarOfertasUrgentesAsync(_usuario)
             : await _ofertas.ListarOfertasDisponiveisAsync(_usuario);
-        ComecarPagina(urgentes ? "Ofertas urgentes" : "Alimentos disponíveis", urgentes
-            ? "A retirada destas ofertas termina nas próximas duas horas."
-            : "Escolha um alimento para reservar.");
+        var reservas = await _reservas.ListarMinhasReservasAsync(_usuario);
+        ComecarPagina(urgentes ? "Ofertas urgentes" : "Alimentos disponíveis",
+            urgentes ? "A retirada destas ofertas termina nas próximas duas horas." : null);
+        AdicionarResumoInstituicao(reservas, (urgentes ? "Ofertas urgentes" : "Ofertas disponíveis", itens.Count.ToString()));
 
         if (itens.Count == 0)
-            AdicionarNaLista(EstiloMesaViva.Legenda("Nenhum alimento disponível no momento."));
-        foreach (OfertaComDisponibilidade item in itens)
-            AdicionarNaLista(CriarCardOferta(item, urgentes));
+            AdicionarEstadoVazio(urgentes ? "Nenhuma oferta urgente no momento." : "Nenhum alimento disponível no momento.");
+        else
+            AdicionarNaLista(CriarGrade(itens.Select(CriarCardOferta).ToArray(), 2, 330));
     }
 
-    private Control CriarCardOferta(OfertaComDisponibilidade item, bool urgentes)
+    private Control CriarCardOferta(OfertaComDisponibilidade item)
     {
         Oferta oferta = item.Oferta;
-        string disponivel = item.QuantidadeDisponivel < 0
-            ? "Saldo inconsistente: as reservas superam o total."
-            : $"Disponível: {Utils.FormatarQuantidade(item.QuantidadeDisponivel)} de {Utils.FormatarQuantidade(oferta.QuantidadeTotal)}";
-        string[] detalhes =
-        [
-            disponivel,
-            $"Validade: {oferta.Validade:dd/MM/yyyy HH:mm}",
-            $"Retirada: {oferta.InicioRetirada:dd/MM/yyyy HH:mm} até {oferta.FimRetirada:dd/MM/yyyy HH:mm}"
-        ];
+        TableLayoutPanel cartao = CriarCartao(oferta.Alimento);
+        AdicionarDetalhe(cartao, $"Disponível  ·  {Utils.FormatarQuantidade(item.QuantidadeDisponivel)}", destaque: true);
+        AdicionarDetalhe(cartao, $"Quantidade total  ·  {Utils.FormatarQuantidade(oferta.QuantidadeTotal)}");
+        if (item.QuantidadeDisponivel < 0)
+            AdicionarDetalhe(cartao, "O total está abaixo da quantidade comprometida.");
+
+        int percentual = oferta.QuantidadeTotal > 0
+            ? (int)Math.Round(Math.Clamp(item.QuantidadeDisponivel / oferta.QuantidadeTotal, 0m, 1m) * 100)
+            : 0;
+        EstiloMesaViva.AdicionarLinha(cartao, new ProgressBar
+        {
+            Dock = DockStyle.Top, Height = LogicalToDeviceUnits(10), Value = percentual,
+            Margin = new Padding(0, 3, 0, 10), AccessibleName = $"{percentual}% da quantidade total disponível"
+        });
+        AdicionarDetalhe(cartao, $"Validade  ·  {Utils.FormatarData(oferta.Validade)}");
+        AdicionarDetalhe(cartao, $"Início da retirada  ·  {Utils.FormatarData(oferta.InicioRetirada)}");
+        AdicionarDetalhe(cartao, $"Fim da retirada  ·  {Utils.FormatarData(oferta.FimRetirada)}");
+
         if (EhEstabelecimento)
         {
             Button editar = EstiloMesaViva.Botao("Editar", primario: false);
             editar.Click += async (_, _) => await AbrirOfertaAsync(oferta);
             Button excluir = EstiloMesaViva.Botao("Excluir", primario: false);
-            excluir.ForeColor = Color.FromArgb(160, 55, 48);
+            excluir.ForeColor = EstiloMesaViva.Erro;
             excluir.Click += async (_, _) => await ExcluirOfertaAsync(oferta);
-            return CriarCard(oferta.Alimento, detalhes, editar, excluir);
+            AdicionarAcoes(cartao, editar, excluir);
+        }
+        else
+        {
+            Button reservar = EstiloMesaViva.Botao("Reservar alimento");
+            reservar.Click += async (_, _) => await ReservarAsync(item);
+            AdicionarAcoes(cartao, reservar);
         }
 
-        Button reservar = EstiloMesaViva.Botao("Reservar alimento");
-        reservar.Click += async (_, _) => await ReservarAsync(item, urgentes);
-        return CriarCard(oferta.Alimento, detalhes, reservar);
+        return cartao;
     }
 
     private async Task AbrirOfertaAsync(Oferta? oferta)
@@ -224,8 +257,8 @@ internal sealed class PainelForm : Form
         if (formulario.ShowDialog(this) != DialogResult.OK)
             return;
 
+        await AbrirPaginaAsync(_pagina);
         OperacaoNaTela.Informar(this, oferta is null ? "Oferta publicada com sucesso." : "Oferta atualizada.");
-        await CarregarAsync(MostrarMinhasOfertasAsync);
     }
 
     private async Task ExcluirOfertaAsync(Oferta oferta)
@@ -233,14 +266,14 @@ internal sealed class PainelForm : Form
         if (!Confirmar($"Excluir a oferta de {oferta.Alimento}?"))
             return;
 
-        if (await CarregarAsync(() => _ofertas.ExcluirOfertaAsync(_usuario, oferta.Id)))
+        if (await ExecutarAsync(() => _ofertas.ExcluirOfertaAsync(_usuario, oferta.Id)))
         {
+            await AbrirPaginaAsync(_pagina);
             OperacaoNaTela.Informar(this, "Oferta excluída.");
-            await CarregarAsync(MostrarMinhasOfertasAsync);
         }
     }
 
-    private async Task ReservarAsync(OfertaComDisponibilidade item, bool urgentes)
+    private async Task ReservarAsync(OfertaComDisponibilidade item)
     {
         using var formulario = new QuantidadeForm(item.Oferta.Alimento, item.QuantidadeDisponivel, async quantidade =>
         {
@@ -249,8 +282,8 @@ internal sealed class PainelForm : Form
         if (formulario.ShowDialog(this) != DialogResult.OK)
             return;
 
+        await AbrirPaginaAsync(_pagina);
         OperacaoNaTela.Informar(this, "Reserva realizada. Consulte o horário de retirada em Minhas reservas.");
-        await CarregarAsync(() => MostrarOfertasAsync(urgentes));
     }
 
     private async Task MostrarReservasAsync(bool recebidas)
@@ -258,11 +291,17 @@ internal sealed class PainelForm : Form
         var itens = recebidas
             ? await _reservas.ListarReservasRecebidasAsync(_usuario)
             : await _reservas.ListarMinhasReservasAsync(_usuario);
+        var ofertas = recebidas ? await _ofertas.ListarMinhasOfertasAsync(_usuario) : null;
         ComecarPagina(recebidas ? "Reservas recebidas" : "Minhas reservas", recebidas
             ? "Acompanhe as instituições que reservaram seus alimentos."
             : "Confira o horário de retirada e o status de suas reservas.");
+        if (ofertas is not null)
+            AdicionarResumoEstabelecimento(ofertas);
+        else
+            AdicionarResumoInstituicao(itens, ("Coletas confirmadas", itens.Count(item => item.Reserva.Status == Reserva.StatusColetada).ToString()));
+
         if (itens.Count == 0)
-            AdicionarNaLista(EstiloMesaViva.Legenda("Nenhuma reserva encontrada."));
+            AdicionarEstadoVazio("Nenhuma reserva encontrada.");
         foreach (ReservaDetalhada item in itens)
             AdicionarNaLista(CriarCardReserva(item, recebidas));
     }
@@ -270,32 +309,37 @@ internal sealed class PainelForm : Form
     private Control CriarCardReserva(ReservaDetalhada item, bool recebida)
     {
         Reserva reserva = item.Reserva;
-        string status = reserva.Status switch
+        TableLayoutPanel cartao = CriarCartao($"{item.Alimento} · Reserva #{reserva.Id}");
+        Label status = EstiloMesaViva.Rotulo(reserva.Status);
+        status.Padding = new Padding(8, 4, 8, 4);
+        status.Margin = new Padding(0, 0, 0, 8);
+        (status.BackColor, status.ForeColor) = reserva.Status switch
         {
-            Reserva.StatusReservada => "Reservada",
-            Reserva.StatusCancelada => "Cancelada",
-            Reserva.StatusColetada => "Coletada",
-            _ => reserva.Status
+            Reserva.StatusReservada => (EstiloMesaViva.VerdeSuave, EstiloMesaViva.VerdeEscuro),
+            Reserva.StatusCancelada => (EstiloMesaViva.VermelhoSuave, EstiloMesaViva.Erro),
+            Reserva.StatusColetada => (EstiloMesaViva.VerdeEscuro, EstiloMesaViva.Superficie),
+            _ => (EstiloMesaViva.Fundo, EstiloMesaViva.Texto)
         };
-        var detalhes = new List<string>
-        {
-            recebida ? $"Instituição: {item.Instituicao}" : $"Estabelecimento: {item.Estabelecimento}",
-            $"{Utils.FormatarQuantidade(reserva.QuantidadeReservada)} · {status}",
-            $"Retirada: {item.InicioRetirada:dd/MM/yyyy HH:mm} até {item.FimRetirada:dd/MM/yyyy HH:mm}",
-            $"Solicitada em: {reserva.DataReserva:dd/MM/yyyy HH:mm}"
-        };
+        EstiloMesaViva.AdicionarLinha(cartao, status);
+        AdicionarDetalhe(cartao, recebida ? $"Instituição  ·  {item.Instituicao}" : $"Estabelecimento  ·  {item.Estabelecimento}");
+        AdicionarDetalhe(cartao, $"Quantidade  ·  {Utils.FormatarQuantidade(reserva.QuantidadeReservada)}", destaque: true);
+        AdicionarDetalhe(cartao, $"Início da retirada  ·  {Utils.FormatarData(item.InicioRetirada)}");
+        AdicionarDetalhe(cartao, $"Fim da retirada  ·  {Utils.FormatarData(item.FimRetirada)}");
+        AdicionarDetalhe(cartao, $"Solicitada em  ·  {Utils.FormatarData(reserva.DataReserva)}");
         if (reserva.DataColeta is DateTime coleta)
-            detalhes.Add($"Coleta confirmada em: {coleta:dd/MM/yyyy HH:mm}");
+            AdicionarDetalhe(cartao, $"Coleta confirmada em  ·  {Utils.FormatarData(coleta)}");
 
-        string titulo = $"{item.Alimento} · Reserva #{reserva.Id}";
-        if (recebida || reserva.Status != Reserva.StatusReservada)
-            return CriarCard(titulo, detalhes);
+        if (!recebida && reserva.Status == Reserva.StatusReservada)
+        {
+            Button confirmar = EstiloMesaViva.Botao("Confirmar coleta");
+            confirmar.Click += async (_, _) => await AlterarReservaAsync(reserva.Id, cancelar: false);
+            Button cancelar = EstiloMesaViva.Botao("Cancelar reserva", primario: false);
+            cancelar.ForeColor = EstiloMesaViva.Erro;
+            cancelar.Click += async (_, _) => await AlterarReservaAsync(reserva.Id, cancelar: true);
+            AdicionarAcoes(cartao, confirmar, cancelar);
+        }
 
-        Button cancelar = EstiloMesaViva.Botao("Cancelar reserva", primario: false);
-        cancelar.Click += async (_, _) => await AlterarReservaAsync(reserva.Id, cancelar: true);
-        Button confirmar = EstiloMesaViva.Botao("Confirmar coleta");
-        confirmar.Click += async (_, _) => await AlterarReservaAsync(reserva.Id, cancelar: false);
-        return CriarCard(titulo, detalhes, cancelar, confirmar);
+        return cartao;
     }
 
     private async Task AlterarReservaAsync(int reservaId, bool cancelar)
@@ -304,16 +348,29 @@ internal sealed class PainelForm : Form
         if (!Confirmar(pergunta))
             return;
 
-        if (await CarregarAsync(() => cancelar
+        if (await ExecutarAsync(() => cancelar
             ? _reservas.CancelarReservaAsync(_usuario, reservaId)
             : _reservas.ConfirmarColetaAsync(_usuario, reservaId)))
         {
+            await AbrirPaginaAsync(_pagina);
             OperacaoNaTela.Informar(this, cancelar ? "Reserva cancelada." : "Coleta confirmada.");
-            await CarregarAsync(() => MostrarReservasAsync(recebidas: false));
         }
     }
 
-    private Task MostrarPerfil()
+    private void MostrarPerfil()
+    {
+        ComecarPagina("Meus dados");
+        TableLayoutPanel cartao = CriarCartao(_usuario.Nome);
+        AdicionarDetalhe(cartao, $"E-mail  ·  {_usuario.Email}");
+        AdicionarDetalhe(cartao, $"Telefone  ·  {_usuario.Telefone}");
+        AdicionarDetalhe(cartao, $"Endereço  ·  {_usuario.Endereco}");
+        Button editar = EstiloMesaViva.Botao("Editar dados");
+        editar.Click += (_, _) => EditarPerfil();
+        AdicionarAcoes(cartao, editar);
+        AdicionarNaLista(cartao);
+    }
+
+    private void EditarPerfil()
     {
         using var formulario = new PerfilForm(_usuario, async (nome, email, telefone, endereco) =>
         {
@@ -322,14 +379,14 @@ internal sealed class PainelForm : Form
         if (formulario.ShowDialog(this) == DialogResult.OK)
         {
             AtualizarConta();
+            MostrarPerfil();
             OperacaoNaTela.Informar(this, "Seus dados foram atualizados.");
         }
-        return Task.CompletedTask;
     }
 
     private void AtualizarConta()
     {
-        _conta.Text = $"{(EhEstabelecimento ? "Estabelecimento" : "Instituição")} · {_usuario.Nome}";
+        _conta.Text = $"{_usuario.Nome} · {(EhEstabelecimento ? "Estabelecimento" : "Instituição")}";
     }
 
     private bool Confirmar(string pergunta)
@@ -338,37 +395,106 @@ internal sealed class PainelForm : Form
             MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) == DialogResult.Yes;
     }
 
-    private static Control CriarCard(string titulo, IReadOnlyList<string> detalhes, params Button[] botoes)
+    private void AdicionarResumoEstabelecimento(List<OfertaComDisponibilidade> ofertas)
     {
-        var card = new TableLayoutPanel
+        int reservasAtivas = ofertas.SelectMany(item => item.Oferta.Reservas)
+            .Count(reserva => reserva.Status == Reserva.StatusReservada);
+        DateTime agora = DateTime.Now;
+        decimal disponivel = ofertas.Where(item => item.Oferta.PodeReservarEm(agora) && item.QuantidadeDisponivel > 0)
+            .Sum(item => item.QuantidadeDisponivel);
+        AdicionarIndicadores(("Ofertas publicadas", ofertas.Count.ToString()), ("Reservas ativas", reservasAtivas.ToString()),
+            ("Alimentos disponíveis", Utils.FormatarQuantidade(disponivel)));
+    }
+
+    private void AdicionarResumoInstituicao(List<ReservaDetalhada> reservas, (string, string) primeiro)
+    {
+        int ativas = reservas.Count(item => item.Reserva.Status == Reserva.StatusReservada);
+        decimal coletados = reservas.Where(item => item.Reserva.Status == Reserva.StatusColetada)
+            .Sum(item => item.Reserva.QuantidadeReservada);
+        AdicionarIndicadores(primeiro, ("Reservas ativas", ativas.ToString()), ("Alimentos coletados", Utils.FormatarQuantidade(coletados)));
+    }
+
+    private void AdicionarIndicadores(params (string Rotulo, string Valor)[] indicadores)
+    {
+        var cartoes = indicadores.Select(item =>
         {
-            AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Top,
-            ColumnCount = 1, RowCount = 2 + detalhes.Count, BackColor = Color.White,
-            Padding = new Padding(16), Margin = new Padding(0, 0, 0, 12)
-        };
-        card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        Label nome = EstiloMesaViva.Titulo(titulo, 15);
-        nome.AutoSize = false;
-        nome.AutoEllipsis = true;
-        nome.Dock = DockStyle.Fill;
-        nome.Margin = Padding.Empty;
-        card.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
-        card.Controls.Add(nome, 0, 0);
-        for (int i = 0; i < detalhes.Count; i++)
+            TableLayoutPanel cartao = EstiloMesaViva.Cartao();
+            EstiloMesaViva.AdicionarLinha(cartao, EstiloMesaViva.Rotulo(item.Rotulo));
+            Label valor = EstiloMesaViva.Titulo(item.Valor, 18);
+            valor.ForeColor = EstiloMesaViva.Verde;
+            valor.Margin = new Padding(0, 5, 0, 0);
+            EstiloMesaViva.AdicionarLinha(cartao, valor);
+            return cartao;
+        }).ToArray();
+        AdicionarNaLista(CriarGrade(cartoes, 3, 155));
+    }
+
+    private void AdicionarEstadoVazio(string mensagem)
+    {
+        TableLayoutPanel cartao = EstiloMesaViva.Cartao();
+        AdicionarDetalhe(cartao, mensagem);
+        AdicionarNaLista(cartao);
+    }
+
+    private TableLayoutPanel CriarGrade(IReadOnlyList<Control> cartoes, int maximoColunas, int larguraMinima)
+    {
+        TableLayoutPanel grade = EstiloMesaViva.Coluna();
+        int colunasAtuais = 0;
+        void AjustarColunas()
         {
-            card.RowStyles.Add(new RowStyle(SizeType.Absolute, 22));
-            card.Controls.Add(new Label
+            int espaco = LogicalToDeviceUnits(EstiloMesaViva.EspacoInterno);
+            int colunas = Math.Clamp((grade.ClientSize.Width + espaco) / (LogicalToDeviceUnits(larguraMinima) + espaco),
+                1, maximoColunas);
+            if (colunas == colunasAtuais)
+                return;
+
+            colunasAtuais = colunas;
+            grade.SuspendLayout();
+            grade.Controls.Clear();
+            grade.ColumnStyles.Clear();
+            grade.RowStyles.Clear();
+            grade.ColumnCount = colunas;
+            grade.RowCount = (cartoes.Count + colunas - 1) / colunas;
+            for (int coluna = 0; coluna < colunas; coluna++)
+                grade.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f / colunas));
+            for (int linha = 0; linha < grade.RowCount; linha++)
+                grade.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            for (int i = 0; i < cartoes.Count; i++)
             {
-                Text = detalhes[i], Dock = DockStyle.Fill, AutoEllipsis = true, UseMnemonic = false,
-                ForeColor = EstiloMesaViva.TextoSuave, Margin = Padding.Empty
-            }, 0, i + 1);
+                int coluna = i % colunas;
+                cartoes[i].Margin = new Padding(0, 0, coluna == colunas - 1 ? 0 : espaco, espaco);
+                grade.Controls.Add(cartoes[i], coluna, i / colunas);
+            }
+            grade.ResumeLayout();
         }
-        if (botoes.Length > 0)
+
+        grade.ClientSizeChanged += (_, _) => AjustarColunas();
+        AjustarColunas();
+        return grade;
+    }
+
+    private static TableLayoutPanel CriarCartao(string titulo)
+    {
+        TableLayoutPanel cartao = EstiloMesaViva.Cartao();
+        cartao.Margin = new Padding(0, 0, 0, EstiloMesaViva.EspacoInterno);
+        EstiloMesaViva.AdicionarLinha(cartao, EstiloMesaViva.Titulo(titulo, 15));
+        return cartao;
+    }
+
+    private static void AdicionarDetalhe(TableLayoutPanel cartao, string texto, bool destaque = false)
+    {
+        Label detalhe = destaque ? EstiloMesaViva.Rotulo(texto) : EstiloMesaViva.Legenda(texto);
+        detalhe.Margin = new Padding(0, 0, 0, 4);
+        EstiloMesaViva.AdicionarLinha(cartao, detalhe);
+    }
+
+    private static void AdicionarAcoes(TableLayoutPanel cartao, params Button[] botoes)
+    {
+        var acoes = new FlowLayoutPanel
         {
-            var acoes = new FlowLayoutPanel { AutoSize = true, Dock = DockStyle.Top, Margin = new Padding(0, 10, 0, 0) };
-            acoes.Controls.AddRange(botoes);
-            card.Controls.Add(acoes, 0, detalhes.Count + 1);
-        }
-        return card;
+            AutoSize = true, Dock = DockStyle.Top, Margin = new Padding(0, EstiloMesaViva.Espaco, 0, 0)
+        };
+        acoes.Controls.AddRange(botoes);
+        EstiloMesaViva.AdicionarLinha(cartao, acoes);
     }
 }
