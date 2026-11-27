@@ -343,7 +343,8 @@ flowchart TD
 Projeto-Integrador-Trabalho/
 ├── Data/
 │   ├── AppDbContext.cs
-│   └── ConexaoMySql.cs
+│   ├── ConexaoMySql.cs
+│   └── DadosDemonstracao.cs
 ├── Migrations/
 │   ├── 20261118163254_InitialCreate.cs
 │   ├── 20261118163254_InitialCreate.Designer.cs
@@ -488,14 +489,55 @@ As versões acima correspondem ao arquivo `.csproj` da implementação documenta
 
 ## 10. Demonstração na apresentação
 
-1. Conectar ao banco de demonstração e cadastrar uma conta de estabelecimento e outra de instituição.
-2. Entrar como estabelecimento. Publicar uma oferta com retirada terminando em até duas horas e outra com prazo maior. Para demonstrar a confirmação antecipada, agendar o início da retirada da primeira oferta para depois do momento da apresentação. Manter o fim de cada retirada dentro da validade do alimento.
-3. Entrar como instituição. Consultar **Alimentos disponíveis** e **Ofertas urgentes** para comparar as situações e identificar os estabelecimentos.
-4. Reservar uma quantidade válida, conferir o endereço e o telefone em **Minhas reservas** e tentar reservar acima do saldo disponível.
-5. Cancelar a reserva e verificar a devolução ao saldo. Fazer outra reserva e confirmar a coleta antes do horário previsto para demonstrar que a ação é permitida e registra o horário real.
-6. Retornar ao painel do estabelecimento, conferir o histórico em **Reservas recebidas** e demonstrar os bloqueios de alteração do alimento e exclusão. Mostrar uma edição permitida, como aumentar a quantidade total.
-7. Atualizar os dados em **Meus dados**, fechar o aplicativo e reabri-lo para mostrar a persistência.
-8. Apresentar os diagramas e explicar a consulta ao cadastro do estabelecimento, o cálculo de disponibilidade e o bloqueio contra reservas concorrentes.
+### 10.1. Preparar o outro computador
+
+1. Leve a pasta com o código atualizado para o computador Windows e instale o SDK do .NET 10. Se o MySQL estiver ausente, instale o MySQL Community Server 8.4 pelo MSI. No MySQL Configurator, habilite TCP/IP na porta `3306`, defina a senha do administrador `root` e configure o servidor como serviço do Windows. Em `services.msc`, confira se o serviço está em execução. Se já houver uma instalação, use o serviço, a porta e as credenciais dessa instalação. [Guia de instalação do MySQL no Windows](https://dev.mysql.com/doc/refman/8.4/en/windows-installation.html)
+2. Abra o PowerShell e acesse o console do MySQL com uma conta autorizada a criar o banco. Ajuste o caminho ou a porta se a instalação usar outros valores. A opção `-p` solicita a senha ao conectar.
+
+   ```powershell
+   & 'C:\Program Files\MySQL\MySQL Server 8.4\bin\mysql.exe' --host=localhost --port=3306 --user=root -p
+   ```
+
+3. No console do MySQL, crie `mesaviva_demo` para isolar os dados fictícios dos dados de uso normal e retorne ao PowerShell.
+
+   ```sql
+   CREATE DATABASE IF NOT EXISTS mesaviva_demo CHARACTER SET utf8mb4;
+   EXIT;
+   ```
+
+4. Com o PowerShell na pasta que contém o `.csproj`, execute `dotnet ef --version`. Se a ferramenta estiver ausente, instale-a com `dotnet tool install --global dotnet-ef --version 10.0.12`. Configure `MESAVIVA_DB` na sessão atual, substituindo `SENHA_DO_MYSQL` pela senha da conta MySQL, e aplique as migrations existentes. Se usar outra conta, ela precisa de permissão neste banco para aplicar as migrations e operar o aplicativo. [Referência do EF Core CLI](https://learn.microsoft.com/en-us/ef/core/cli/dotnet)
+
+   ```powershell
+   $env:MESAVIVA_DB = 'Server=localhost;Port=3306;Database=mesaviva_demo;User=root;Password=SENHA_DO_MYSQL;'
+   dotnet ef database update --project .\Projeto-Integrador-Trabalho.csproj
+   ```
+
+5. Pouco antes da apresentação, abra `Program.cs` e remova o `//` do início da linha `// Task.Run(DadosDemonstracao.PrepararAsync).GetAwaiter().GetResult();`, logo depois da validação da conexão e antes da criação do login. Salve o arquivo e execute no mesmo PowerShell.
+
+   ```powershell
+   dotnet run --project .\Projeto-Integrador-Trabalho.csproj
+   ```
+
+6. Quando a tela de login abrir, os dados estarão preparados. Acesse as contas com as credenciais abaixo. Use **Sair da conta** para alternar entre os perfis.
+
+   | Perfil | E-mail | Senha |
+   |---|---|---|
+   | Padaria MesaViva | `padaria@mesaviva.test` | `Demo123!` |
+   | Instituto Esperança | `instituto@mesaviva.test` | `Demo123!` |
+
+7. Feche o aplicativo, recoloque o `//` no início da mesma chamada em `Program.cs` e salve. Execute novamente `dotnet run --project .\Projeto-Integrador-Trabalho.csproj` para recompilar e usar os dados já gravados. As migrations são aplicadas com o comando da etapa 4.
+
+O prazo começa na primeira preparação. Pães ficam disponíveis para retirada por uma hora e maçãs por 24 horas. Repetir a preparação preserva as contas, os prazos das ofertas existentes e o histórico de reservas. Se os prazos tiverem passado e você precisar de uma nova demonstração, prepare outro banco vazio seguindo os mesmos passos com um novo nome.
+
+### 10.2. Roteiro da apresentação
+
+1. Entre como estabelecimento e confira **Minhas ofertas**. Pães têm 15 kg e maçãs têm 20 kg.
+2. Entre como instituição e abra **Alimentos disponíveis** para ver as duas ofertas. Em **Ofertas urgentes**, confira a oferta de pães.
+3. Reserve uma quantidade válida, confira o endereço e o telefone em **Minhas reservas** e tente reservar acima do saldo disponível.
+4. Cancele a reserva e verifique a devolução ao saldo. Faça outra reserva e confirme a coleta para mostrar como o horário real fica registrado.
+5. Retorne ao painel do estabelecimento, confira o histórico em **Reservas recebidas** e demonstre os bloqueios de alteração do alimento e exclusão. Mostre uma edição permitida, como aumentar a quantidade total.
+6. Atualize os dados em **Meus dados**, feche o aplicativo e reabra-o para mostrar a persistência.
+7. Apresente os diagramas e explique a consulta ao cadastro do estabelecimento, o cálculo de disponibilidade e o bloqueio contra reservas concorrentes.
 
 ## 11. Validação e limitações
 

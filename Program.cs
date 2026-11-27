@@ -19,6 +19,9 @@ internal static class Program
                 EnvironmentVariableTarget.Process);
         }
 
+        // Descomente somente para preparar os dados da apresentação.
+        // Task.Run(DadosDemonstracao.PrepararAsync).GetAwaiter().GetResult();
+
         using var context = new AppDbContext();
         using var login = new LoginForm(new AuthService(context));
         Application.Run(login);
