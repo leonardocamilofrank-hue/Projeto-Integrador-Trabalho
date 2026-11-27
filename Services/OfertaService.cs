@@ -5,7 +5,12 @@ using Microsoft.EntityFrameworkCore;
 
 namespace MesaViva.Services;
 
-public sealed record OfertaComDisponibilidade(Oferta Oferta, decimal QuantidadeDisponivel);
+public sealed record OfertaComDisponibilidade(
+    Oferta Oferta, decimal SaldoRestante, SituacaoOferta Situacao, string? Estabelecimento = null)
+{
+    public decimal QuantidadeDisponivel =>
+        Situacao is SituacaoOferta.Disponivel or SituacaoOferta.Urgente ? SaldoRestante : 0;
+}
 
 public class OfertaService
 {
@@ -14,7 +19,8 @@ public class OfertaService
         DateTime validade, DateTime inicioRetirada, DateTime fimRetirada)
     {
         estabelecimento.ExigirTipo(Usuario.TipoEstabelecimento);
-        Oferta oferta = ValidarDados(alimento, quantidadeTotal, validade, inicioRetirada, fimRetirada);
+        Oferta oferta = MontarOferta(alimento, quantidadeTotal, validade, inicioRetirada, fimRetirada);
+        oferta.Validar();
         if (!oferta.PodeReservarEm(DateTime.Now))
         {
             throw new InvalidOperationException(
@@ -33,10 +39,15 @@ public class OfertaService
     {
         estabelecimento.ExigirTipo(Usuario.TipoEstabelecimento);
         await using var context = new AppDbContext();
-        var ofertas = await CarregarOfertasAsync(context.Ofertas
-            .Where(oferta => oferta.EstabelecimentoId == estabelecimento.Id));
+        var ofertas = await context.Ofertas.AsNoTracking()
+            .Where(oferta => oferta.EstabelecimentoId == estabelecimento.Id)
+            .Include(oferta => oferta.Reservas)
+            .OrderBy(oferta => oferta.FimRetirada)
+            .ThenBy(oferta => oferta.Id)
+            .ToListAsync();
 
-        return ofertas.Select(ComDisponibilidade).ToList();
+        DateTime agora = DateTime.Now;
+        return ofertas.Select(oferta => ComDisponibilidade(oferta, oferta.Reservas, agora)).ToList();
     }
 
     public Task<List<OfertaComDisponibilidade>> ListarOfertasDisponiveisAsync(Usuario instituicao)
@@ -54,19 +65,30 @@ public class OfertaService
         DateTime validade, DateTime inicioRetirada, DateTime fimRetirada)
     {
         estabelecimento.ExigirTipo(Usuario.TipoEstabelecimento);
-        Oferta novosDados = ValidarDados(alimento, quantidadeTotal, validade, inicioRetirada, fimRetirada);
+        Oferta novosDados = MontarOferta(alimento, quantidadeTotal, validade, inicioRetirada, fimRetirada);
+        novosDados.ValidarDados();
 
         await using var context = new AppDbContext();
         await using var transacao = await context.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted);
         Oferta oferta = await BuscarOfertaPropriaAsync(context, estabelecimento.Id, ofertaId);
         await context.Entry(oferta).Collection(item => item.Reservas).LoadAsync();
 
+        bool possuiHistorico = oferta.Reservas.Count > 0;
+        bool alterouAlimento = !string.Equals(oferta.Alimento.Trim(), novosDados.Alimento, StringComparison.Ordinal);
+        if (possuiHistorico && alterouAlimento)
+        {
+            throw new InvalidOperationException("Não é possível alterar o alimento de uma oferta que já possui reservas registradas.");
+        }
+        if (alterouAlimento)
+            novosDados.ValidarNomeSemNumeros();
+
         if (novosDados.QuantidadeTotal < oferta.CalcularQuantidadeComprometida(oferta.Reservas))
         {
             throw new InvalidOperationException("A quantidade total não pode ser menor que a quantidade já comprometida.");
         }
 
-        oferta.Alimento = novosDados.Alimento;
+        if (!possuiHistorico)
+            oferta.Alimento = novosDados.Alimento;
         oferta.QuantidadeTotal = novosDados.QuantidadeTotal;
         oferta.Validade = novosDados.Validade;
         oferta.InicioRetirada = novosDados.InicioRetirada;
@@ -98,28 +120,34 @@ public class OfertaService
         instituicao.ExigirTipo(Usuario.TipoInstituicao);
         await using var context = new AppDbContext();
         DateTime agora = DateTime.Now;
-        var ofertas = await CarregarOfertasAsync(context.Ofertas
-            .Where(oferta => oferta.Validade >= agora && oferta.FimRetirada > agora));
+        var consulta = from oferta in context.Ofertas.AsNoTracking()
+                       join estabelecimento in context.Usuarios on oferta.EstabelecimentoId equals estabelecimento.Id
+                       where oferta.Validade >= agora && oferta.FimRetirada > agora
+                       orderby oferta.FimRetirada, oferta.Id
+                       select new
+                       {
+                           Oferta = oferta,
+                           Estabelecimento = estabelecimento.Nome,
+                           Reservas = oferta.Reservas.Select(reserva => new Reserva
+                           {
+                               OfertaId = reserva.OfertaId,
+                               Status = reserva.Status,
+                               QuantidadeReservada = reserva.QuantidadeReservada
+                           }).ToList()
+                       };
+        var ofertas = await consulta.ToListAsync();
 
         return ofertas
-            .Where(oferta => !apenasUrgentes || oferta.EstaUrgente(oferta.Reservas, agora))
-            .Select(ComDisponibilidade)
-            .Where(item => item.QuantidadeDisponivel > 0)
+            .Select(item => ComDisponibilidade(item.Oferta, item.Reservas, agora, item.Estabelecimento))
+            .Where(item => item.QuantidadeDisponivel > 0 && (!apenasUrgentes || item.Situacao == SituacaoOferta.Urgente))
             .ToList();
     }
 
-    private static Task<List<Oferta>> CarregarOfertasAsync(IQueryable<Oferta> consulta)
+    private static OfertaComDisponibilidade ComDisponibilidade(
+        Oferta oferta, IEnumerable<Reserva> reservas, DateTime agora, string? estabelecimento = null)
     {
-        return consulta.AsNoTracking()
-            .Include(oferta => oferta.Reservas)
-            .OrderBy(oferta => oferta.FimRetirada)
-            .ThenBy(oferta => oferta.Id)
-            .ToListAsync();
-    }
-
-    private static OfertaComDisponibilidade ComDisponibilidade(Oferta oferta)
-    {
-        return new OfertaComDisponibilidade(oferta, oferta.CalcularQuantidadeDisponivel(oferta.Reservas));
+        decimal saldo = oferta.CalcularQuantidadeDisponivel(reservas);
+        return new OfertaComDisponibilidade(oferta, saldo, oferta.ObterSituacao(saldo, agora), estabelecimento);
     }
 
     private static async Task<Oferta> BuscarOfertaPropriaAsync(AppDbContext context, int estabelecimentoId, int ofertaId)
@@ -133,10 +161,9 @@ public class OfertaService
         return oferta;
     }
 
-    private static Oferta ValidarDados(
-        string alimento, decimal quantidadeTotal, DateTime validade, DateTime inicioRetirada, DateTime fimRetirada)
-    {
-        var oferta = new Oferta
+    private static Oferta MontarOferta(
+        string alimento, decimal quantidadeTotal, DateTime validade, DateTime inicioRetirada, DateTime fimRetirada) =>
+        new()
         {
             Alimento = alimento?.Trim() ?? string.Empty,
             QuantidadeTotal = quantidadeTotal,
@@ -144,7 +171,4 @@ public class OfertaService
             InicioRetirada = inicioRetirada,
             FimRetirada = fimRetirada
         };
-        oferta.Validar();
-        return oferta;
-    }
 }

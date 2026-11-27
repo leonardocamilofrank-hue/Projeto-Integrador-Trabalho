@@ -6,6 +6,8 @@ public class Usuario
 {
     public const string TipoEstabelecimento = "ESTABELECIMENTO";
     public const string TipoInstituicao = "INSTITUICAO";
+    internal const string ExemploTelefone = "(48) 99624-7660";
+    private const int TamanhoMaximoEmail = 255;
 
     public int Id { get; set; }
     public string Nome { get; set; } = string.Empty;
@@ -45,14 +47,21 @@ public class Usuario
             throw new ArgumentException("O e-mail é obrigatório.", nameof(email));
         }
 
+        if (email.Trim().Length > TamanhoMaximoEmail)
+        {
+            throw new ArgumentException($"O e-mail deve ter no máximo {TamanhoMaximoEmail} caracteres.", nameof(email));
+        }
+
         if (!TentarNormalizarEmail(email, out string emailNormalizado))
         {
             throw new ArgumentException("Informe um e-mail válido, como nome@exemplo.com.", nameof(email));
         }
 
-        if (string.IsNullOrWhiteSpace(telefone))
+        if (!TentarFormatarTelefone(telefone, out string telefoneFormatado))
         {
-            throw new ArgumentException("O telefone é obrigatório.", nameof(telefone));
+            throw new ArgumentException(
+                $"Informe um telefone com 11 dígitos, incluindo o DDD (ex.: {ExemploTelefone}).",
+                nameof(telefone));
         }
 
         if (string.IsNullOrWhiteSpace(endereco))
@@ -62,15 +71,30 @@ public class Usuario
 
         Nome = nome.Trim();
         Email = emailNormalizado;
-        Telefone = telefone.Trim();
+        Telefone = telefoneFormatado;
         Endereco = endereco.Trim();
     }
+
+    internal static bool TentarFormatarTelefone(string? telefone, out string formatado)
+    {
+        formatado = string.Empty;
+        string digitos = ObterDigitosTelefone(telefone ?? string.Empty);
+
+        if (digitos.Length != 11 || !digitos.All(char.IsAsciiDigit))
+            return false;
+
+        formatado = $"({digitos[..2]}) {digitos[2..7]}-{digitos[7..]}";
+        return true;
+    }
+
+    internal static string ObterDigitosTelefone(string telefone) =>
+        telefone.Replace("(", "").Replace(")", "").Replace(" ", "").Replace("-", "");
 
     internal static bool TentarNormalizarEmail(string? email, out string emailNormalizado)
     {
         emailNormalizado = string.Empty;
         string? emailAparado = email?.Trim();
-        if (string.IsNullOrEmpty(emailAparado) || emailAparado.Length > 255
+        if (string.IsNullOrEmpty(emailAparado) || emailAparado.Length > TamanhoMaximoEmail
             || !MailAddress.TryCreate(emailAparado, out MailAddress? endereco)
             || !string.IsNullOrEmpty(endereco.DisplayName)
             || !string.Equals(endereco.Address, emailAparado, StringComparison.OrdinalIgnoreCase))

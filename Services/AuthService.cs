@@ -45,7 +45,7 @@ public class AuthService
 
         try
         {
-            await SalvarUsuarioAsync();
+            await SalvarComTelefoneDisponivelAsync(usuario);
         }
         finally
         {
@@ -58,7 +58,8 @@ public class AuthService
     public async Task<Usuario> AtualizarDadosAsync(
         Usuario usuario, string nome, string email, string telefone, string endereco)
     {
-        if (usuario.Id <= 0 || Usuario.NormalizarTipo(usuario.Tipo) is null)
+        string? tipo = Usuario.NormalizarTipo(usuario.Tipo);
+        if (usuario.Id <= 0 || tipo is null)
         {
             throw new InvalidOperationException("Entre em uma conta para editar seus dados.");
         }
@@ -68,16 +69,21 @@ public class AuthService
 
         try
         {
+            cadastro.ExigirTipo(tipo);
+            string telefoneAnterior = Usuario.ObterDigitosTelefone(cadastro.Telefone);
             cadastro.AtualizarDados(nome, email, telefone, endereco);
             await VerificarEmailDisponivelAsync(cadastro.Email, cadastro.Id);
-            await SalvarUsuarioAsync();
+            if (telefoneAnterior == Usuario.ObterDigitosTelefone(cadastro.Telefone))
+                await SalvarUsuarioAsync();
+            else
+                await SalvarComTelefoneDisponivelAsync(cadastro);
         }
         finally
         {
             _context.Entry(cadastro).State = EntityState.Detached;
         }
 
-        cadastro.Tipo = Usuario.NormalizarTipo(cadastro.Tipo) ?? cadastro.Tipo;
+        cadastro.Tipo = tipo;
         return cadastro;
     }
 
@@ -90,6 +96,20 @@ public class AuthService
         {
             throw new InvalidOperationException("Este e-mail já está cadastrado.");
         }
+    }
+
+    private Task SalvarComTelefoneDisponivelAsync(Usuario usuario)
+    {
+        string digitos = Usuario.ObterDigitosTelefone(usuario.Telefone);
+        return _context.ComBloqueioTelefoneAsync(digitos, async () =>
+        {
+            bool jaCadastrado = await _context.Usuarios.AnyAsync(item => item.Id != usuario.Id
+                && item.Telefone.Replace("(", "").Replace(")", "").Replace(" ", "").Replace("-", "") == digitos);
+            if (jaCadastrado)
+                throw new InvalidOperationException("Este telefone já está cadastrado em outra conta.");
+
+            await SalvarUsuarioAsync();
+        });
     }
 
     private async Task SalvarUsuarioAsync()
@@ -121,7 +141,8 @@ public class AuthService
             return null;
         }
 
-        usuario.Tipo = Usuario.NormalizarTipo(usuario.Tipo) ?? usuario.Tipo;
+        usuario.Tipo = Usuario.NormalizarTipo(usuario.Tipo)
+            ?? throw new InvalidOperationException("Tipo de conta não reconhecido.");
         return usuario;
     }
 

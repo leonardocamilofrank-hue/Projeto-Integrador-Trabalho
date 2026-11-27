@@ -5,6 +5,10 @@ namespace MesaViva.Data;
 
 public class AppDbContext : DbContext
 {
+    public AppDbContext() { }
+
+    internal AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
     public DbSet<Usuario> Usuarios { get; set; } = null!;
     public DbSet<Oferta> Ofertas { get; set; } = null!;
     public DbSet<Reserva> Reservas { get; set; } = null!;
@@ -19,13 +23,43 @@ public class AppDbContext : DbContext
         return ofertas.SingleOrDefault();
     }
 
+    internal async Task ComBloqueioTelefoneAsync(string digitos, Func<Task> salvar)
+    {
+        // O bloqueio por número fica na mesma conexão usada para consultar e gravar o cadastro.
+        await Database.OpenConnectionAsync();
+        try
+        {
+            int? obtido = await Database.SqlQuery<int?>(
+                $"SELECT GET_LOCK(SHA2(CONCAT(DATABASE(), ':mesaviva:telefone:', {digitos}), 256), 10) AS Value")
+                .SingleAsync();
+            if (obtido != 1)
+                throw new InvalidOperationException("Não foi possível validar o telefone agora. Tente novamente.");
+
+            try
+            {
+                await salvar();
+            }
+            finally
+            {
+                await Database.SqlQuery<int?>(
+                    $"SELECT RELEASE_LOCK(SHA2(CONCAT(DATABASE(), ':mesaviva:telefone:', {digitos}), 256)) AS Value")
+                    .SingleAsync();
+            }
+        }
+        finally
+        {
+            await Database.CloseConnectionAsync();
+        }
+    }
+
     protected override void OnConfiguring(
         DbContextOptionsBuilder optionsBuilder)
     {
-        string conexao = Environment.GetEnvironmentVariable("MESAVIVA_DB")
-            ?? throw new InvalidOperationException(
-                "Configure a variável MESAVIVA_DB.");
+        if (optionsBuilder.IsConfigured)
+            return;
 
+        string conexao = ConexaoMySql.LerConfiguracao()
+            ?? throw new InvalidOperationException("Configure a variável MESAVIVA_DB para usar os comandos do EF Core.");
         optionsBuilder.UseMySQL(conexao);
     }
 
