@@ -108,13 +108,12 @@ internal abstract class DialogoForm : Form
 
 internal sealed class OfertaForm : DialogoForm
 {
-    private const string ExemploData = "30/11/2026 14:30";
     private readonly TextBox _alimento = EstiloMesaViva.Campo();
     private readonly CampoQuantidade _quantidade = new();
 
     public OfertaForm(Oferta? oferta, Func<string, decimal, DateTime, DateTime, DateTime, Task> salvar)
         : base(oferta is null ? "Cadastrar alimento" : "Editar oferta",
-            "Marque os campos de data e ajuste o dia e a hora de cada etapa.", 515)
+            "Digite as datas e os horários no formato dd/MM/aaaa HH:mm.", 515)
     {
         _alimento.Text = oferta?.Alimento ?? string.Empty;
         _quantidade.Text = oferta?.QuantidadeTotal.ToString("0.##", CultureInfo.CurrentCulture) ?? string.Empty;
@@ -129,49 +128,25 @@ internal sealed class OfertaForm : DialogoForm
 
     private Func<DateTime> AdicionarData(string rotulo, DateTime? valor)
     {
-        if (valor is DateTime antiga
-            && (antiga < DateTimePicker.MinimumDateTime || antiga > DateTimePicker.MaximumDateTime))
-        {
-            // O MySQL aceita datas fora do intervalo do controle nativo do Windows.
-            return AdicionarDataComMascara(rotulo, antiga);
-        }
-
-        var campo = new DateTimePicker
-        {
-            Format = DateTimePickerFormat.Custom, CustomFormat = Utils.FormatoData,
-            ShowUpDown = true, ShowCheckBox = true, Checked = valor.HasValue
-        };
+        MaskedTextBox campo = EstiloMesaViva.CampoComMascara("00/00/0000 00:00");
+        campo.PromptChar = ' ';
+        campo.AllowPromptAsInput = false;
         if (valor.HasValue)
-            campo.Value = valor.Value;
+            campo.Text = Utils.FormatarData(valor.Value);
         AdicionarCampo(rotulo, campo);
 
         return () =>
         {
-            if (!campo.Checked)
-                throw new ArgumentException($"Informe a data e a hora do campo de {rotulo.ToLowerInvariant()}.");
+            if (!campo.MaskCompleted || !DateTime.TryParseExact(campo.Text, Utils.FormatoData,
+                CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime data))
+            {
+                throw new ArgumentException($"Informe a data e a hora válidas para {rotulo.ToLowerInvariant()} no formato dd/MM/aaaa HH:mm.");
+            }
 
-            DateTime data = campo.Value.AddTicks(-(campo.Value.Ticks % TimeSpan.TicksPerMinute));
             // Preserve a precisão já armazenada quando a data e a hora exibidas não mudarem.
             if (valor is DateTime original && original.Ticks / TimeSpan.TicksPerMinute == data.Ticks / TimeSpan.TicksPerMinute)
                 return original;
             return data;
-        };
-    }
-
-    private Func<DateTime> AdicionarDataComMascara(string rotulo, DateTime valor)
-    {
-        MaskedTextBox campo = EstiloMesaViva.CampoComMascara("00/00/0000 00:00");
-        string original = Utils.FormatarData(valor);
-        campo.Text = original;
-        AdicionarCampo(rotulo, campo);
-        return () =>
-        {
-            if (campo.Text == original)
-                return valor;
-            if (campo.MaskCompleted && DateTime.TryParseExact(campo.Text, Utils.FormatoData,
-                CultureInfo.GetCultureInfo("pt-BR"), DateTimeStyles.None, out DateTime data))
-                return data;
-            throw new ArgumentException($"Informe uma data e hora válidas para {rotulo} (ex.: {ExemploData}).");
         };
     }
 }
