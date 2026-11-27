@@ -239,9 +239,14 @@ internal sealed class PainelForm : Form
     {
         Oferta oferta = item.Oferta;
         TableLayoutPanel cartao = CriarCartao(oferta.Alimento);
-        AdicionarDetalhe(cartao, $"Disponível  ·  {Utils.FormatarQuantidade(item.QuantidadeDisponivel)}", destaque: true);
+        AdicionarSituacaoOferta(cartao, item.Situacao);
+        if (!EhEstabelecimento && item.Estabelecimento is string estabelecimento)
+            AdicionarDetalhe(cartao, $"Estabelecimento  ·  {estabelecimento}");
+        if (EhEstabelecimento)
+            AdicionarDetalhe(cartao, $"Saldo restante  ·  {Utils.FormatarQuantidade(item.SaldoRestante)}");
+        AdicionarDetalhe(cartao, $"Para novas reservas  ·  {Utils.FormatarQuantidade(item.QuantidadeDisponivel)}", destaque: true);
         AdicionarDetalhe(cartao, $"Quantidade total  ·  {Utils.FormatarQuantidade(oferta.QuantidadeTotal)}");
-        if (item.QuantidadeDisponivel < 0)
+        if (item.SaldoRestante < 0)
             AdicionarDetalhe(cartao, "O total está abaixo da quantidade comprometida.");
 
         int percentual = oferta.QuantidadeTotal > 0
@@ -250,7 +255,7 @@ internal sealed class PainelForm : Form
         EstiloMesaViva.AdicionarLinha(cartao, new ProgressBar
         {
             Dock = DockStyle.Top, Height = 10, Value = percentual,
-            Margin = new Padding(0, 3, 0, 10), AccessibleName = $"{percentual}% da quantidade total disponível"
+            Margin = new Padding(0, 3, 0, 10), AccessibleName = $"{percentual}% da quantidade total pode ser reservada"
         });
         AdicionarDetalhe(cartao, $"Validade  ·  {Utils.FormatarData(oferta.Validade)}");
         AdicionarDetalhe(cartao, $"Início da retirada  ·  {Utils.FormatarData(oferta.InicioRetirada)}");
@@ -273,6 +278,20 @@ internal sealed class PainelForm : Form
         }
 
         return cartao;
+    }
+
+    private static void AdicionarSituacaoOferta(TableLayoutPanel cartao, SituacaoOferta situacao)
+    {
+        var (texto, fundo, cor) = situacao switch
+        {
+            SituacaoOferta.Disponivel => ("DISPONÍVEL", EstiloMesaViva.VerdeSuave, EstiloMesaViva.VerdeEscuro),
+            SituacaoOferta.Urgente => ("URGENTE", Color.FromArgb(255, 242, 209), Color.FromArgb(112, 69, 16)),
+            SituacaoOferta.Vencida => ("VENCIDA", EstiloMesaViva.VermelhoSuave, EstiloMesaViva.Erro),
+            SituacaoOferta.Encerrada => ("ENCERRADA", EstiloMesaViva.Fundo, EstiloMesaViva.TextoSuave),
+            SituacaoOferta.Esgotada => ("ESGOTADA", EstiloMesaViva.Borda, EstiloMesaViva.Texto),
+            _ => throw new ArgumentOutOfRangeException(nameof(situacao))
+        };
+        AdicionarStatus(cartao, texto, fundo, cor);
     }
 
     private async Task AbrirOfertaAsync(Oferta? oferta)
@@ -341,18 +360,26 @@ internal sealed class PainelForm : Form
     {
         Reserva reserva = item.Reserva;
         TableLayoutPanel cartao = CriarCartao($"{item.Alimento} · Reserva #{reserva.Id}");
-        Label status = EstiloMesaViva.Rotulo(reserva.Status);
-        status.Padding = new Padding(8, 4, 8, 4);
-        status.Margin = new Padding(0, 0, 0, 8);
-        (status.BackColor, status.ForeColor) = reserva.Status switch
+        var (fundo, cor) = reserva.Status switch
         {
             Reserva.StatusReservada => (EstiloMesaViva.VerdeSuave, EstiloMesaViva.VerdeEscuro),
             Reserva.StatusCancelada => (EstiloMesaViva.VermelhoSuave, EstiloMesaViva.Erro),
             Reserva.StatusColetada => (EstiloMesaViva.VerdeEscuro, EstiloMesaViva.Superficie),
             _ => (EstiloMesaViva.Fundo, EstiloMesaViva.Texto)
         };
-        EstiloMesaViva.AdicionarLinha(cartao, status);
-        AdicionarDetalhe(cartao, recebida ? $"Instituição  ·  {item.Instituicao}" : $"Estabelecimento  ·  {item.Estabelecimento}");
+        AdicionarStatus(cartao, reserva.Status, fundo, cor);
+        if (recebida)
+        {
+            AdicionarDetalhe(cartao, $"Instituição  ·  {item.Instituicao}");
+        }
+        else
+        {
+            AdicionarDetalhe(cartao, $"Estabelecimento  ·  {item.Estabelecimento}");
+            string endereco = string.IsNullOrWhiteSpace(item.EnderecoEstabelecimento) ? "Não informado" : item.EnderecoEstabelecimento;
+            string telefone = string.IsNullOrWhiteSpace(item.TelefoneEstabelecimento) ? "Não informado" : item.TelefoneEstabelecimento;
+            AdicionarDetalhe(cartao, $"Endereço  ·  {endereco}");
+            AdicionarDetalhe(cartao, $"Telefone  ·  {telefone}");
+        }
         AdicionarDetalhe(cartao, $"Quantidade  ·  {Utils.FormatarQuantidade(reserva.QuantidadeReservada)}", destaque: true);
         AdicionarDetalhe(cartao, $"Início da retirada  ·  {Utils.FormatarData(item.InicioRetirada)}");
         AdicionarDetalhe(cartao, $"Fim da retirada  ·  {Utils.FormatarData(item.FimRetirada)}");
@@ -430,9 +457,7 @@ internal sealed class PainelForm : Form
     {
         int reservasAtivas = ofertas.SelectMany(item => item.Oferta.Reservas)
             .Count(reserva => reserva.Status == Reserva.StatusReservada);
-        DateTime agora = DateTime.Now;
-        decimal disponivel = ofertas.Where(item => item.Oferta.PodeReservarEm(agora) && item.QuantidadeDisponivel > 0)
-            .Sum(item => item.QuantidadeDisponivel);
+        decimal disponivel = ofertas.Sum(item => item.QuantidadeDisponivel);
         AdicionarIndicadores(("Ofertas publicadas", ofertas.Count.ToString()), ("Reservas ativas", reservasAtivas.ToString()),
             ("Alimentos disponíveis", Utils.FormatarQuantidade(disponivel)));
     }
@@ -515,6 +540,8 @@ internal sealed class PainelForm : Form
         }
 
         grade.SuspendLayout();
+        foreach (Control cartao in cartoes)
+            cartao.Dock = DockStyle.Fill;
         grade.Controls.AddRange(cartoes.ToArray());
         grade.HandleCreated += (_, _) => AjustarGrade();
         grade.ClientSizeChanged += (_, _) => AjustarGrade();
@@ -542,6 +569,16 @@ internal sealed class PainelForm : Form
         EstiloMesaViva.AdicionarLinha(cartao, detalhe);
     }
 
+    private static void AdicionarStatus(TableLayoutPanel cartao, string texto, Color fundo, Color cor)
+    {
+        Label status = EstiloMesaViva.Rotulo(texto);
+        status.Padding = new Padding(8, 4, 8, 4);
+        status.Margin = new Padding(0, 0, 0, 8);
+        status.BackColor = fundo;
+        status.ForeColor = cor;
+        EstiloMesaViva.AdicionarLinha(cartao, status);
+    }
+
     private static void AdicionarAcoes(TableLayoutPanel cartao, params Button[] botoes)
     {
         var acoes = new FlowLayoutPanel
@@ -550,6 +587,8 @@ internal sealed class PainelForm : Form
             Margin = new Padding(0, EstiloMesaViva.Espaco, 0, 0)
         };
         acoes.Controls.AddRange(botoes);
+        cartao.RowCount++;
+        cartao.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         EstiloMesaViva.AdicionarLinha(cartao, acoes);
     }
 }

@@ -7,7 +7,8 @@ namespace MesaViva.Services;
 
 public sealed record ReservaDetalhada(
     Reserva Reserva, string Alimento, string Estabelecimento, string Instituicao,
-    DateTime InicioRetirada, DateTime FimRetirada);
+    DateTime InicioRetirada, DateTime FimRetirada, string? EnderecoEstabelecimento = null,
+    string? TelefoneEstabelecimento = null);
 
 public class ReservaService
 {
@@ -83,7 +84,9 @@ public class ReservaService
                orderby reserva.DataReserva descending, reserva.Id descending
                select new ReservaDetalhada(
                    reserva, oferta.Alimento, estabelecimento.Nome, instituicao.Nome,
-                   oferta.InicioRetirada, oferta.FimRetirada);
+                   oferta.InicioRetirada, oferta.FimRetirada,
+                   instituicaoId != null ? estabelecimento.Endereco : null,
+                   instituicaoId != null ? estabelecimento.Telefone : null);
     }
 
     private static async Task AlterarReservaAsync(Usuario instituicao, int reservaId, Action<Reserva> alterar)
