@@ -45,7 +45,7 @@ public class AuthService
 
         try
         {
-            await SalvarUsuarioAsync();
+            await SalvarComTelefoneDisponivelAsync(usuario);
         }
         finally
         {
@@ -70,9 +70,13 @@ public class AuthService
         try
         {
             cadastro.ExigirTipo(tipo);
+            string telefoneAnterior = Usuario.ObterDigitosTelefone(cadastro.Telefone);
             cadastro.AtualizarDados(nome, email, telefone, endereco);
             await VerificarEmailDisponivelAsync(cadastro.Email, cadastro.Id);
-            await SalvarUsuarioAsync();
+            if (telefoneAnterior == Usuario.ObterDigitosTelefone(cadastro.Telefone))
+                await SalvarUsuarioAsync();
+            else
+                await SalvarComTelefoneDisponivelAsync(cadastro);
         }
         finally
         {
@@ -92,6 +96,20 @@ public class AuthService
         {
             throw new InvalidOperationException("Este e-mail já está cadastrado.");
         }
+    }
+
+    private Task SalvarComTelefoneDisponivelAsync(Usuario usuario)
+    {
+        string digitos = Usuario.ObterDigitosTelefone(usuario.Telefone);
+        return _context.ComBloqueioTelefoneAsync(digitos, async () =>
+        {
+            bool jaCadastrado = await _context.Usuarios.AnyAsync(item => item.Id != usuario.Id
+                && item.Telefone.Replace("(", "").Replace(")", "").Replace(" ", "").Replace("-", "") == digitos);
+            if (jaCadastrado)
+                throw new InvalidOperationException("Este telefone já está cadastrado em outra conta.");
+
+            await SalvarUsuarioAsync();
+        });
     }
 
     private async Task SalvarUsuarioAsync()

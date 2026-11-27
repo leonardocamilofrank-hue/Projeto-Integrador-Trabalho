@@ -78,8 +78,7 @@ public class Usuario
     internal static bool TentarFormatarTelefone(string? telefone, out string formatado)
     {
         formatado = string.Empty;
-        string digitos = new((telefone ?? string.Empty)
-            .Where(caractere => caractere is not (' ' or '(' or ')' or '-')).ToArray());
+        string digitos = ObterDigitosTelefone(telefone ?? string.Empty);
 
         if (digitos.Length != 11 || !digitos.All(char.IsAsciiDigit))
             return false;
@@ -87,6 +86,9 @@ public class Usuario
         formatado = $"({digitos[..2]}) {digitos[2..7]}-{digitos[7..]}";
         return true;
     }
+
+    internal static string ObterDigitosTelefone(string telefone) =>
+        telefone.Replace("(", "").Replace(")", "").Replace(" ", "").Replace("-", "");
 
     internal static bool TentarNormalizarEmail(string? email, out string emailNormalizado)
     {
