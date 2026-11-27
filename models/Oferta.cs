@@ -1,4 +1,15 @@
+using System.Text;
+
 namespace MesaViva.Models;
+
+public enum SituacaoOferta
+{
+    Vencida,
+    Encerrada,
+    Esgotada,
+    Urgente,
+    Disponivel
+}
 
 public class Oferta
 {
@@ -12,6 +23,18 @@ public class Oferta
     public ICollection<Reserva> Reservas { get; } = new List<Reserva>();
 
     public void Validar()
+    {
+        ValidarDados();
+        ValidarNomeSemNumeros();
+    }
+
+    internal void ValidarNomeSemNumeros()
+    {
+        if (Alimento.EnumerateRunes().Any(Rune.IsNumber))
+            throw new ArgumentException("O nome do alimento não pode conter números.", nameof(Alimento));
+    }
+
+    internal void ValidarDados()
     {
         if (string.IsNullOrWhiteSpace(Alimento))
         {
@@ -50,6 +73,7 @@ public class Oferta
 
     public decimal CalcularQuantidadeDisponivel(IEnumerable<Reserva> reservas)
     {
+        // O saldo aritmético pode ser positivo mesmo após o encerramento da retirada.
         return QuantidadeTotal - CalcularQuantidadeComprometida(reservas);
     }
 
@@ -70,8 +94,20 @@ public class Oferta
 
     public bool EstaUrgente(IEnumerable<Reserva> reservas, DateTime agora)
     {
-        return PodeReservarEm(agora)
-            && FimRetirada <= agora.AddHours(2)
-            && CalcularQuantidadeDisponivel(reservas) > 0;
+        return ObterSituacao(CalcularQuantidadeDisponivel(reservas), agora) == SituacaoOferta.Urgente;
+    }
+
+    public SituacaoOferta ObterSituacao(decimal saldoRestante, DateTime agora)
+    {
+        if (Validade < agora)
+            return SituacaoOferta.Vencida;
+        if (!PodeReservarEm(agora))
+            return SituacaoOferta.Encerrada;
+        if (saldoRestante <= 0)
+            return SituacaoOferta.Esgotada;
+
+        return FimRetirada - agora <= TimeSpan.FromHours(2)
+            ? SituacaoOferta.Urgente
+            : SituacaoOferta.Disponivel;
     }
 }
